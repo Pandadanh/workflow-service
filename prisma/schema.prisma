@@ -1,0 +1,1456 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+model FailedQueueMessage {
+  id           String    @id @default(uuid()) @db.Uuid
+  queueName    String
+  messageType  String
+  messageData  Json
+  errorMessage String
+  errorStack   String?
+  retryCount   Int       @default(0)
+  lastRetryAt  DateTime?
+  failedAt     DateTime  @default(now())
+  isResolved   Boolean   @default(false)
+  resolvedAt   DateTime?
+  resolvedBy   String?   @db.Uuid
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([queueName])
+  @@index([messageType])
+  @@index([isResolved])
+  @@index([failedAt])
+}
+
+
+model User {
+  id                     String                  @id @default(uuid()) @db.Uuid
+  username               String                  @unique
+  email                  String?                 @unique
+  password               String
+  roles                  UserRole[]              @default([user])
+  note                   String?
+  properties             Json?
+  is_active              Boolean                 @default(true)
+  is_deleted             Boolean                 @default(false)
+  created_at             DateTime                @default(now())
+  created_by             String?
+  updated_at             DateTime                @default(now())
+  updated_by             String?
+  notifications          Notification[]
+  // Reservation relations
+  host_reservations      Reservation[]           @relation("ReservationHost")
+  reservations           Reservation[]           @relation("ReservationUser")
+  point_transactions     PointTransaction[]
+  reported_reports       ReportMatching[]        @relation("ReportedUser")
+  reporter_reports       ReportMatching[]        @relation("Reporter")
+  requestWithdrawals     RequestWithdrawal[]
+  transactions           Transaction[]
+  profile                UserProfile?
+  user_ranks             UserRank?
+  wallet                 UserWallet?
+  withdrawalLimit        UserWithdrawalLimit?
+  withdrawalOtps         WithdrawalOtp[]
+  withdrawalTransactions WithdrawalTransaction[]
+  mediaFiles             MediaFile[]
+  
+  // Tournament module relations
+  hosted_tournaments     Tournament[]            @relation("UserHostedTournaments")
+  players                Player[]
+  
+  // report owner relations
+  reported_owners        ReportOwner[]           @relation("Reporter")
+  owned_reports          ReportOwner[]           @relation("ReportOwnerUser")
+  bankAccounts           UserBankAccount[]
+  
+  // Group relations
+  managed_groups         Group[]                 @relation("GroupManager")
+  group_members          GroupMember[]           @relation("GroupMemberUser")
+  group_posts            GroupPost[]             @relation("GroupPostAuthor")
+
+  // Course relations
+  channels               CourseChannel[]         @relation("CoachChannels")
+  enrollments            CourseEnrollment[]
+  feedbacks              Feedback[]
+
+  // GroupPost relaition
+  post_likes             PostLike[]
+  post_comments          PostComment[]
+
+
+  @@index([username])
+  @@index([email])
+  @@index([roles])
+  @@index([created_at])
+  @@index([is_active])
+  @@index([is_deleted])
+}
+
+model Notification {
+  id           String               @id @default(uuid()) @db.Uuid
+  userId       String               @db.Uuid
+  title        String
+  message      String
+  type         NotificationType     @default(GENERAL)
+  isRead       Boolean              @default(false)
+  readAt       DateTime?
+  resourceId   String?              @db.Uuid
+  resourceType String?
+  actionUrl    String?
+  metadata     Json?
+  note         String?
+  properties   Json?
+  isActive     Boolean              @default(true)
+  isDeleted    Boolean              @default(false)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  createdBy    String?              @db.Uuid
+  updatedBy    String?              @db.Uuid
+  user         User                 @relation(fields: [userId], references: [id])
+  details      NotificationDetail[]
+
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
+  @@index([createdAt])
+  @@index([resourceId])
+  @@index([resourceType])
+}
+
+model Reservation {
+  id              String         @id @default(uuid()) @db.Uuid
+  court_id        String         @db.Uuid
+  host_id         String         @db.Uuid
+  user_id         String         @db.Uuid
+  is_active       Boolean        @default(true)
+  is_deleted      Boolean        @default(false)
+  created_at      DateTime       @default(now())
+  updated_at      DateTime       @default(now())
+  created_by      String?        @db.Uuid
+  updated_by      String?        @db.Uuid
+  court           BadmintonCourt @relation(fields: [court_id], references: [id])
+  host            User           @relation("ReservationHost", fields: [host_id], references: [id])
+  user            User           @relation("ReservationUser", fields: [user_id], references: [id])
+
+  @@index([court_id])
+  @@index([host_id])
+  @@index([user_id])
+  @@index([created_at])
+  @@index([is_active])
+}
+
+
+model PointTransaction {
+  id           String            @id @default(uuid()) @db.Uuid
+  user_id      String            @db.Uuid
+  booking_id   String?           @db.Uuid
+  point_change Int               @default(10)
+  reason       String?
+  bonus        Int               @default(0)
+  note         String?
+  properties   Json?
+  is_active    Boolean           @default(true)
+  is_deleted   Boolean           @default(false)
+  created_at   DateTime          @default(now())
+  updated_at   DateTime          @default(now())
+  created_by   String?           @db.Uuid
+  updated_by   String?           @db.Uuid
+  booking      BadmintonBooking? @relation(fields: [booking_id], references: [id])
+  user         User              @relation(fields: [user_id], references: [id])
+
+  @@unique([user_id, booking_id])
+}
+
+model ReportMatching {
+  id                String            @id @default(uuid()) @db.Uuid
+  reported_user_id  String            @db.Uuid
+  reporter_id       String            @db.Uuid
+  reason            String?
+  status            String            @default("pending")
+  booking_id        String?           @db.Uuid
+  note              String?
+  properties        Json?
+  is_active         Boolean           @default(true)
+  is_deleted        Boolean           @default(false)
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @default(now())
+  created_by        String?           @db.Uuid
+  updated_by        String?           @db.Uuid
+
+  reported_user     User              @relation("ReportedUser", fields: [reported_user_id], references: [id])
+  reporter          User              @relation("Reporter", fields: [reporter_id], references: [id])
+  booking           BadmintonBooking? @relation(fields: [booking_id], references: [id])
+}
+
+model RequestWithdrawal {
+  id            String                @id @default(uuid()) @db.Uuid
+  withdrawalId  String                @db.Uuid
+  userId        String                @db.Uuid
+  amount        Decimal               @db.Decimal(20, 2)
+  method        WithdrawalMethod      @default(MOMO)
+  recipientInfo Json
+  transactionId String                @unique
+  status        RequestStatus         @default(PENDING)
+  priority      Int                   @default(1)
+  scheduledAt   DateTime              @default(now())
+  processedAt   DateTime?
+  completedAt   DateTime?
+  errorMessage  String?
+  retryCount    Int                   @default(0)
+  maxRetries    Int                   @default(3)
+  nextRetryAt   DateTime?
+  metadata      Json?
+  isActive      Boolean               @default(true)
+  isDeleted     Boolean               @default(false)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  user          User                  @relation(fields: [userId], references: [id])
+  withdrawal    WithdrawalTransaction @relation(fields: [withdrawalId], references: [id])
+
+  @@index([withdrawalId])
+  @@index([userId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([priority])
+  @@index([nextRetryAt])
+}
+
+model Transaction {
+  id            String    @id @default(uuid()) @db.Uuid
+  user_id       String    @db.Uuid
+  access_token  String
+  refresh_token String
+  expired_at    DateTime?
+  ip_address    String?
+  user_agent    String?
+  note          String?
+  properties    Json?
+  is_active     Boolean   @default(true)
+  is_deleted    Boolean   @default(false)
+  created_at    DateTime  @default(now())
+  created_by    String?
+  updated_at    DateTime  @default(now())
+  updated_by    String?
+  user          User      @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+}
+
+model UserProfile {
+  id            String    @id @default(uuid()) @db.Uuid
+  user_id       String    @unique @db.Uuid
+  first_name    String?
+  last_name     String?
+  phone_number  String?
+  email         String?   @unique
+  date_of_birth DateTime?
+  gender        String?
+  avatar_url    String?
+  bio           String?
+  address       String?
+  social_links  Json?
+  properties    Json?
+  is_active     Boolean   @default(true)
+  is_deleted    Boolean   @default(false)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @default(now())
+  created_by    String?   @db.Uuid
+  updated_by    String?   @db.Uuid
+  user          User      @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+  @@index([phone_number])
+}
+
+model UserRank {
+  id            String     @id @default(uuid()) @db.Uuid
+  user_id       String     @unique @db.Uuid
+  current_point Int        @default(0)
+  rank_id       String?    @db.Uuid
+  note          String?
+  properties    Json?
+  is_active     Boolean    @default(true)
+  is_deleted    Boolean    @default(false)
+  created_at    DateTime   @default(now())
+  updated_at    DateTime   @default(now())
+  created_by    String?    @db.Uuid
+  updated_by    String?    @db.Uuid
+  rank_level    RankLevel? @relation(fields: [rank_id], references: [id])
+  user          User       @relation(fields: [user_id], references: [id])
+}
+
+model UserWallet {
+  id            String                  @id @default(uuid()) @db.Uuid
+  userId        String                  @unique @db.Uuid
+  balance       Decimal                 @default(0) @db.Decimal(20, 2)
+  frozenBalance Decimal                 @default(0) @db.Decimal(20, 2)
+  version       Int                     @default(1)
+  lastUpdated   DateTime                @default(now())
+  isActive      Boolean                 @default(true)
+  isDeleted     Boolean                 @default(false)
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  createdBy     String?                 @db.Uuid
+  updatedBy     String?                 @db.Uuid
+  user          User                    @relation(fields: [userId], references: [id])
+  withdrawals   WithdrawalTransaction[]
+
+  @@index([userId])
+  @@index([balance])
+}
+
+model UserWithdrawalLimit {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @db.Uuid
+  dailyLimit      Decimal  @default(5000000) @db.Decimal(20, 2)
+  weeklyLimit     Decimal  @default(20000000) @db.Decimal(20, 2)
+  monthlyLimit    Decimal  @default(50000000) @db.Decimal(20, 2)
+  maxTransactions Int      @default(10)
+  minAmount       Decimal  @default(50000) @db.Decimal(20, 2)
+  maxAmount       Decimal  @default(2000000) @db.Decimal(20, 2)
+  todayAmount     Decimal  @default(0) @db.Decimal(20, 2)
+  todayCount      Int      @default(0)
+  weekAmount      Decimal  @default(0) @db.Decimal(20, 2)
+  monthAmount     Decimal  @default(0) @db.Decimal(20, 2)
+  lastResetDate   DateTime @default(now())
+  isActive        Boolean  @default(true)
+  isDeleted       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  user            User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model WithdrawalOtp {
+  id           String                @id @default(uuid()) @db.Uuid
+  withdrawalId String                @db.Uuid
+  userId       String                @db.Uuid
+  token        String
+  hashedToken  String
+  attemptCount Int                   @default(0)
+  maxAttempts  Int                   @default(5)
+  isUsed       Boolean               @default(false)
+  isActive     Boolean               @default(true)
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  user         User                  @relation(fields: [userId], references: [id])
+  withdrawal   WithdrawalTransaction @relation(fields: [withdrawalId], references: [id])
+
+  @@index([withdrawalId])
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model WithdrawalTransaction {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  userId             String                 @db.Uuid
+  walletId           String                 @db.Uuid
+  amount             Decimal                @db.Decimal(20, 2)
+  status             WithdrawalStatus       @default(PENDING)
+  method             WithdrawalMethod       @default(MOMO)
+  recipientInfo      Json
+  transactionId      String                 @unique
+  momoRequestId      String?
+  momoTransId        String?
+  requestIp          String?
+  userAgent          String?
+  deviceId           String?
+  dailyCount         Int                    @default(1)
+  weeklyAmount       Decimal                @default(0) @db.Decimal(20, 2)
+  otpSentAt          DateTime?
+  otpVerifiedAt      DateTime?
+  processedAt        DateTime?
+  completedAt        DateTime?
+  expiredAt          DateTime
+  errorMessage       String?
+  retryCount         Int                    @default(0)
+  lastRetryAt        DateTime?
+  note               String?
+  properties         Json?
+  isActive           Boolean                @default(true)
+  isDeleted          Boolean                @default(false)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  createdBy          String?                @db.Uuid
+  updatedBy          String?                @db.Uuid
+  momoResults        MomoWithdrawalResult[]
+  requestWithdrawals RequestWithdrawal[]
+  otpTokens          WithdrawalOtp[]
+  user               User                   @relation(fields: [userId], references: [id])
+  wallet             UserWallet             @relation(fields: [walletId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([transactionId])
+  @@index([createdAt])
+  @@index([expiredAt])
+}
+
+model MediaFile {
+  userId              String?             @db.Uuid
+  id                  String              @id @default(uuid()) @db.Uuid
+  fileName            String
+  originalName        String?
+  mimeType            String?
+  sizeInBytes         BigInt?
+  storagePath         String?
+  url                 String?
+  checksum            String?
+  category            MediaFileCategory   @default(IMAGE)
+  actionType          MediaFileActionType @default(UPLOAD)
+  description         String?
+  properties          Json?
+  is_active           Boolean             @default(true)
+  is_deleted          Boolean             @default(false)
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @updatedAt
+  created_by          String?             @db.Uuid
+  updated_by          String?             @db.Uuid
+  user                User?               @relation(fields: [userId], references: [id])
+  // HLS streaming    fields
+  hlsPlaylistPath     String?             // Path to m3u8 playlist in MinIO
+  hlsSegmentsFolder   String?             // Folder containing .ts segments
+  hlsProcessingStatus String?             @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  hlsResolutions      String?             // Comma-separated: 360p,480p,720p,1080p
+  hlsDuration         Int?                // Video duration in seconds
+  hlsError            String?             // Error message if processing failed
+
+  @@index([userId])
+}
+
+model Tournament {
+  id         String             @id @default(uuid()) @db.Uuid
+  name       String
+  host_id    String             @db.Uuid
+  court_id   String?            @db.Uuid
+  rules      String?
+  link_url   String?
+  properties Json?
+  time_start DateTime?
+  time_end   DateTime?
+  status     TournamentStatus   @default(DRAFT)
+  is_active  Boolean            @default(true)
+  is_deleted Boolean            @default(false)
+  created_at DateTime           @default(now())
+  updated_at DateTime           @default(now())
+  created_by String?            @db.Uuid
+  updated_by String?            @db.Uuid
+  players    Player[]
+  court      BadmintonCourt?    @relation(fields: [court_id], references: [id])
+  host       User               @relation("UserHostedTournaments", fields: [host_id], references: [id])
+  details    TournamentDetail[]
+  matches    TournamentMatch[]
+  teams      TournamentTeam[]
+}
+
+model Player {
+  id                   String           @id @default(uuid()) @db.Uuid
+  tournament_id        String           @db.Uuid
+  tournament_detail_id String           @db.Uuid
+  user_id              String           @db.Uuid
+  team_id              String?          @db.Uuid
+  is_active            Boolean          @default(true)
+  is_deleted           Boolean          @default(false)
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @updatedAt
+  created_by           String?          @db.Uuid
+  updated_by           String?          @db.Uuid
+  team                 TournamentTeam?  @relation(fields: [team_id], references: [id])
+  tournament_detail    TournamentDetail @relation(fields: [tournament_detail_id], references: [id])
+  tournament           Tournament       @relation(fields: [tournament_id], references: [id])
+  user                 User             @relation(fields: [user_id], references: [id])
+
+  @@unique([tournament_id, tournament_detail_id, user_id])
+  @@index([user_id])
+  @@index([team_id])
+  @@index([tournament_detail_id])
+}
+
+model ReportOwner {
+  id               String           @id @default(uuid()) @db.Uuid
+  reporter_id      String           @db.Uuid
+  owner_user_id   String            @db.Uuid
+  booking_id       String?          @db.Uuid
+  court_id         String?          @db.Uuid
+  reason           String?          
+  note             String?          
+  properties       Json?            
+  status           ReportOwnerStatus @default(PENDING)
+  rating           Int?             @db.SmallInt
+  is_active        Boolean          @default(true)
+  is_deleted       Boolean          @default(false)
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @default(now())
+  created_by       String?          @db.Uuid
+  updated_by       String?          @db.Uuid
+
+  // relations
+  reporter         User              @relation("Reporter", fields: [reporter_id], references: [id])
+  owner_user       User              @relation("ReportOwnerUser", fields: [owner_user_id], references: [id])
+  court            BadmintonCourt?   @relation("CourtReportOwner", fields: [court_id], references: [id])
+  booking          BadmintonBooking? @relation(fields: [booking_id], references: [id])
+}
+
+model UserBankAccount {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  bankId        Int?
+  bankCode      String?  @db.VarChar(20)
+  bankBin       String?  @db.VarChar(20)
+  bankName      String
+  accountNumber String
+  accountName   String
+  note          String?
+  isActive      Boolean  @default(true)
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([accountNumber])
+}
+
+model Group {
+  id                 String        @id @default(uuid()) @db.Uuid
+  name               String
+  description        String?
+  status             GroupStatus   @default(ACTIVE)
+  sport_type         SportType     @default(BADMINTON)
+  skill_level        String?
+  city_id            String?       @db.Uuid
+  city_name          String?
+  district_id        String?       @db.Uuid
+  district_name      String?
+  manager_id         String        @db.Uuid
+  avatar_url         String?
+  cover_image_url    String?
+  member_count       Int           @default(0)
+  max_members        Int?
+  is_public          Boolean       @default(true)
+  require_approval   Boolean       @default(true)
+  note               String?
+  properties         Json?
+  is_active          Boolean       @default(true)
+  is_deleted         Boolean       @default(false)
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @default(now())
+  created_by         String?       @db.Uuid
+  updated_by         String?       @db.Uuid
+  
+  manager            User          @relation("GroupManager", fields: [manager_id], references: [id])
+  members            GroupMember[]
+  posts              GroupPost[]
+  bookings           BadmintonBooking[]
+  
+  @@index([manager_id])
+  @@index([status])
+  @@index([sport_type])
+  @@index([city_id])
+  @@index([district_id])
+  @@index([is_active])
+  @@index([created_at])
+}
+
+model GroupMember {
+  id              String             @id @default(uuid()) @db.Uuid
+  group_id        String             @db.Uuid
+  user_id         String             @db.Uuid
+  role            GroupMemberRole    @default(MEMBER)
+  status          GroupMemberStatus  @default(PENDING)
+  joined_at       DateTime?
+  requested_at    DateTime           @default(now())
+  approved_by     String?            @db.Uuid
+  approved_at     DateTime?
+  rejected_by     String?            @db.Uuid
+  rejected_at     DateTime?
+  rejected_reason String?
+  note            String?
+  properties      Json?
+  is_active       Boolean            @default(true)
+  is_deleted      Boolean            @default(false)
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @default(now())
+  created_by      String?            @db.Uuid
+  updated_by      String?            @db.Uuid
+
+  group           Group              @relation(fields: [group_id], references: [id])
+  user            User               @relation("GroupMemberUser", fields: [user_id], references: [id])
+
+  @@unique([group_id, user_id])
+  @@index([group_id])
+  @@index([user_id])
+  @@index([status])
+  @@index([role])
+  @@index([created_at])
+}
+
+model GroupPost {
+  id              String         @id @default(uuid()) @db.Uuid
+  group_id        String         @db.Uuid
+  author_id       String         @db.Uuid
+  media_ids       String?        @db.Text
+  content         String
+  like_count      Int            @default(0)
+  comment_count   Int            @default(0)
+  share_count     Int            @default(0)
+  status          PostStatus     @default(PENDING)
+  is_active       Boolean        @default(true)
+  is_deleted      Boolean        @default(false)
+  note            String?
+  properties      Json?
+  created_at      DateTime       @default(now())
+  updated_at      DateTime       @default(now())
+  created_by      String?        @db.Uuid
+  updated_by      String?        @db.Uuid
+
+  group           Group          @relation(fields: [group_id], references: [id])
+  author          User           @relation("GroupPostAuthor", fields: [author_id], references: [id])
+  likes           PostLike[]
+  comments        PostComment[]
+
+
+  @@index([group_id])
+  @@index([author_id])
+  @@index([created_at])
+}
+
+model CourseChannel {
+  id           String        @id @default(uuid()) @db.Uuid
+  coach_id     String        @db.Uuid
+  name         String
+  description  String?
+  is_active    Boolean       @default(true)
+  is_deleted   Boolean       @default(false)
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+  created_by   String?
+  updated_by   String?
+  // Relations
+  coach        User          @relation("CoachChannels", fields: [coach_id], references: [id])
+  classes      CourseClass[]
+}
+
+model CourseEnrollment {
+  id           String          @id @default(uuid()) @db.Uuid
+  user_id      String          @db.Uuid
+  schedule_id  String          @db.Uuid
+  note         String?
+  is_payment   Boolean         @default(false)
+  status       PaymentStatus   @default(PENDING) 
+  is_active    Boolean         @default(true)
+  is_deleted   Boolean         @default(false)
+  created_at   DateTime        @default(now())
+  updated_at   DateTime        @updatedAt
+  created_by   String?
+  updated_by   String?
+
+  // Relations
+  schedule     CourseSchedule  @relation(fields: [schedule_id], references: [id])
+  user         User            @relation(fields: [user_id], references: [id])
+  orders       CourseOrder[]
+}
+
+
+model Feedback {
+  id           String          @id @default(uuid()) @db.Uuid
+  target_id    String          @db.Uuid
+  type         FeedbackType
+  comment      String?
+  is_visible   Boolean         @default(true)
+  created_at   DateTime        @default(now())
+  updated_at   DateTime        @updatedAt
+  created_by   String?         @db.Uuid
+  updated_by   String?
+
+  user         User?           @relation(fields: [created_by], references: [id])
+  schedule     CourseSchedule? @relation(fields: [target_id], references: [id])
+}
+
+model PostLike {
+  id         String    @id @default(uuid()) @db.Uuid
+  post_id    String    @db.Uuid
+  user_id    String    @db.Uuid
+  is_active            Boolean              @default(true)
+  is_deleted           Boolean              @default(false)
+  created_at DateTime  @default(now())
+  updated_at DateTime  @default(now())
+  
+  post       GroupPost @relation(fields: [post_id], references: [id])
+  user       User      @relation(fields: [user_id], references: [id])
+
+  @@unique([post_id, user_id]) // 1 person can only like once
+}
+
+model PostComment {
+  id          String        @id @default(uuid()) @db.Uuid
+  post_id     String        @db.Uuid
+  user_id     String        @db.Uuid
+  content     String
+  parent_id   String?       @db.Uuid   // reply comment
+  is_active   Boolean       @default(true)
+  is_deleted  Boolean       @default(false)
+  created_at  DateTime      @default(now())
+  updated_at  DateTime      @default(now())
+
+  post        GroupPost     @relation(fields: [post_id], references: [id])
+  user        User          @relation(fields: [user_id], references: [id])
+  // self relation
+  parent      PostComment?  @relation("CommentReplies", fields: [parent_id], references: [id])
+  replies     PostComment[] @relation("CommentReplies")
+
+  @@index([post_id])
+}
+
+model NotificationDetail {
+  id             String       @id @default(uuid()) @db.Uuid
+  notificationId String       @db.Uuid
+  content        String
+  contentType    String       @default("text")
+  imageUrl       String?
+  actionLabel    String?
+  actionUrl      String?
+  priority       Int          @default(1)
+  metadata       Json?
+  note           String?
+  properties     Json?
+  isActive       Boolean      @default(true)
+  isDeleted      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  createdBy      String?      @db.Uuid
+  updatedBy      String?      @db.Uuid
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model BadmintonCourt {
+  id                String             @id @default(uuid()) @db.Uuid
+  court_name        String
+  court_address     String?
+  court_phone       String?
+  owner_name        String?
+  name_normalized   String?
+  longitude         Decimal?           @db.Decimal(10, 6)
+  latitude          Decimal?           @db.Decimal(10, 6)
+  price_casual      Decimal?           @db.Decimal(12, 2)
+  price_fixed       Decimal?           @db.Decimal(12, 2)
+  note              String?
+  properties        Json?
+  is_active         Boolean            @default(true)
+  is_deleted        Boolean            @default(false)
+  created_at        DateTime           @default(now())
+  updated_at        DateTime           @default(now())
+  district_id       String?            @db.Uuid
+  created_by        String?            @db.Uuid
+  updated_by        String?            @db.Uuid
+  bookings          BadmintonBooking[]
+  district          District?          @relation(fields: [district_id], references: [id])
+  booking_members   BookingMember[]
+  tournaments       Tournament[]
+  tournamentMatches TournamentMatch[]
+  reservations       Reservation[]
+  report_owners   ReportOwner[]      @relation("CourtReportOwner")
+  schedules      CourseSchedule[] 
+}
+
+model BadmintonBooking {
+  court_id           String?            @db.Uuid
+  post_id            String?            @db.Uuid
+  group_id           String?            @db.Uuid
+  court_name         String?
+  court_address      String?
+  host_phone         String?
+  host_name          String?
+  note               String?
+  properties         Json?
+  is_active          Boolean            @default(true)
+  is_deleted         Boolean            @default(false)
+  is_public          Boolean            @default(false)
+  created_at         DateTime           @default(now())
+  updated_at         DateTime           @default(now())
+  time_start         DateTime
+  time_end           DateTime
+  price              Decimal?           @db.Decimal(12, 2)
+  skill_levels       String?
+  link_url           String?
+  count              Int?
+  price_man          Decimal?           @db.Decimal(12, 2)
+  price_woman        Decimal?           @db.Decimal(12, 2)
+  id                 String             @id @default(uuid()) @db.Uuid
+  created_by         String?            @db.Uuid
+  updated_by         String?            @db.Uuid
+  require_deposit    Boolean            @default(false)
+  is_promotion       Boolean            @default(false)
+  promotion_id       String?            @db.Uuid
+  court              BadmintonCourt?    @relation(fields: [court_id], references: [id])
+  post               Post?              @relation(fields: [post_id], references: [id])
+  group              Group?             @relation(fields: [group_id], references: [id]) 
+  promotion          Promotion?         @relation(fields: [promotion_id], references: [id])
+  booking_members    BookingMember[]    @relation("BookingToMember")
+  point_transactions PointTransaction[]
+  reports ReportMatching[]
+  report_owners    ReportOwner[]
+  insufficient_slots_notified_at  DateTime?
+
+  //Booking schedule
+  recurring_days  String[]         @default([])
+
+  @@index([court_id])
+  @@index([post_id])
+  @@index([group_id])
+  @@index([created_by])
+  @@index([time_start])
+  @@index([time_end])
+  @@index([is_active])
+  @@index([is_deleted])
+  @@index([created_at])
+  @@index([promotion_id])
+  @@index([insufficient_slots_notified_at])
+}
+
+
+model RankLevel {
+  id              String      @id @default(uuid()) @db.Uuid
+  rank_name       String
+  note            String?
+  properties      Json?
+  is_active       Boolean     @default(true)
+  is_deleted      Boolean     @default(false)
+  created_at      DateTime    @default(now())
+  updated_at      DateTime    @default(now())
+  created_by      String?     @db.Uuid
+  updated_by      String?     @db.Uuid
+  next_level_id   String?     @db.Uuid
+  next_level      RankLevel?  @relation("NextRankLevel", fields: [next_level_id], references: [id])
+  previous_levels RankLevel[] @relation("NextRankLevel")
+  user_ranks      UserRank[]
+
+  @@index([next_level_id])
+}
+
+model MomoWithdrawalResult {
+  id           String                @id @default(uuid()) @db.Uuid
+  withdrawalId String                @db.Uuid
+  requestId    String
+  partnerCode  String
+  amount       Decimal               @db.Decimal(20, 2)
+  orderId      String
+  requestType  String                @default("captureWallet")
+  resultCode   Int?
+  message      String?
+  responseTime DateTime?
+  transId      String?
+  signature    String?
+  rawRequest   Json
+  rawResponse  Json?
+  isSuccess    Boolean               @default(false)
+  isProcessed  Boolean               @default(false)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  withdrawal   WithdrawalTransaction @relation(fields: [withdrawalId], references: [id])
+
+  @@index([withdrawalId])
+  @@index([requestId])
+  @@index([orderId])
+  @@index([resultCode])
+}
+
+model TournamentDetail {
+  id            String             @id @default(uuid()) @db.Uuid
+  tournament_id String             @db.Uuid
+  category_id   String             @db.Uuid
+  type          MatchType
+  gender_type   GenderType?
+  slot          Int?
+  skill_level   String?
+  rules         String?
+  prizes        String?
+  price         Decimal?           @db.Decimal(12, 2)
+  price_men     Decimal?           @db.Decimal(12, 2)
+  price_women   Decimal?           @db.Decimal(12, 2)
+  time_start    DateTime?
+  time_end      DateTime?
+  is_active     Boolean            @default(true)
+  is_deleted    Boolean            @default(false)
+  created_at    DateTime           @default(now())
+  updated_at    DateTime           @updatedAt
+  created_by    String?            @db.Uuid
+  updated_by    String?            @db.Uuid
+  players       Player[]
+  category      TournamentCategory @relation(fields: [category_id], references: [id])
+  tournament    Tournament         @relation(fields: [tournament_id], references: [id])
+  matches       TournamentMatch[]
+  teams         TournamentTeam[]
+}
+
+model TournamentMatch {
+  id                   String           @id @default(uuid()) @db.Uuid
+  tournament_id        String           @db.Uuid
+  tournament_detail_id String           @db.Uuid
+  court_id             String?          @db.Uuid
+  court_name           String?
+  match_type           MatchType
+  start_time           DateTime?
+  end_time             DateTime?
+  team_home_id         String           @db.Uuid
+  team_guest_id        String           @db.Uuid
+  winner_id            String?          @db.Uuid
+  status               MatchStatus      @default(SCHEDULED)
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @default(now())
+  court                BadmintonCourt?  @relation(fields: [court_id], references: [id])
+  team_guest           TournamentTeam   @relation("MatchGuestTeam", fields: [team_guest_id], references: [id])
+  team_home            TournamentTeam   @relation("MatchHomeTeam", fields: [team_home_id], references: [id])
+  tournament_detail    TournamentDetail @relation(fields: [tournament_detail_id], references: [id])
+  tournament           Tournament       @relation(fields: [tournament_id], references: [id])
+  winner_team          TournamentTeam?  @relation("MatchWinnerTeam", fields: [winner_id], references: [id])
+
+  @@index([tournament_id])
+  @@index([status])
+  @@index([match_type])
+}
+
+model TournamentTeam {
+  id                   String            @id @default(uuid()) @db.Uuid
+  tournament_id        String            @db.Uuid
+  tournament_detail_id String            @db.Uuid
+  name                 String
+  captain_id           String?           @db.Uuid
+  slots_member         Json
+  members_count        Int               @default(0)
+  is_active            Boolean           @default(true)
+  is_deleted           Boolean           @default(false)
+  created_at           DateTime          @default(now())
+  updated_at           DateTime          @default(now())
+  created_by           String?           @db.Uuid
+  updated_by           String?           @db.Uuid
+  players              Player[]
+  guest_matches        TournamentMatch[] @relation("MatchGuestTeam")
+  home_matches         TournamentMatch[] @relation("MatchHomeTeam")
+  won_matches          TournamentMatch[] @relation("MatchWinnerTeam")
+  tournament_detail    TournamentDetail  @relation(fields: [tournament_detail_id], references: [id])
+  tournament           Tournament        @relation(fields: [tournament_id], references: [id])
+
+  @@unique([tournament_id, tournament_detail_id, name])
+  @@index([tournament_detail_id])
+  @@index([captain_id])
+}
+
+model CourseClass {
+  id           String        @id @default(uuid()) @db.Uuid
+  channel_id   String        @db.Uuid
+  class_name   String
+  description  String?
+  is_active    Boolean       @default(true)
+  is_deleted   Boolean       @default(false)
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+  created_by   String?       @db.Uuid
+  updated_by   String?       @db.Uuid
+
+  // Relations
+  course       CourseChannel @relation(fields: [channel_id], references: [id])
+  schedules    CourseSchedule[]
+}
+
+model CourseSchedule {
+  id            String              @id @default(uuid()) @db.Uuid
+  class_id      String              @db.Uuid
+  court_id      String              @db.Uuid
+  monday        Boolean             @default(false)
+  tuesday       Boolean             @default(false)
+  wednesday     Boolean             @default(false)
+  thursday      Boolean             @default(false)
+  friday        Boolean             @default(false)
+  saturday      Boolean             @default(false)
+  sunday        Boolean             @default(false)
+  max_students  Int
+  price         Decimal             @db.Decimal(12, 2)
+  target_amount Int?
+  description   String?
+  date_start    DateTime
+  date_end      DateTime
+  time_start    DateTime
+  time_end      DateTime
+  is_recurring  Boolean             @default(false)
+  is_active     Boolean             @default(true)
+  is_deleted    Boolean             @default(false)
+  created_at    DateTime            @default(now())
+  updated_at    DateTime            @updatedAt
+  created_by    String?
+  updated_by    String?
+
+  // Relations
+  class         CourseClass         @relation(fields: [class_id], references: [id])
+  court         BadmintonCourt?     @relation(fields: [court_id], references: [id])
+  enrollments   CourseEnrollment[]
+  feedbacks     Feedback[]
+}
+
+model CourseOrder {
+  id            String           @id @default(uuid()) @db.Uuid
+  enrollment_id String           @db.Uuid
+  total_amount  Decimal          @db.Decimal(12, 2)
+  billing_date  DateTime
+  paid_at       DateTime?
+  status        OrderStatus      @default(PENDING) 
+  created_at    DateTime         @default(now())
+  updated_at    DateTime         @updatedAt
+  created_by    String?
+  updated_by    String?
+  // Relations
+  enrollment    CourseEnrollment @relation(fields: [enrollment_id], references: [id])
+}
+
+model District {
+  id              String           @id @default(uuid()) @db.Uuid
+  name            String
+  longitude       Decimal?         @db.Decimal(10, 6)
+  latitude        Decimal?         @db.Decimal(10, 6)
+  note            String?
+  properties      Json?
+  is_active       Boolean          @default(true)
+  is_deleted      Boolean          @default(false)
+  created_at      DateTime         @default(now())
+  updated_at      DateTime         @default(now())
+  name_normalized String?
+  created_by      String?          @db.Uuid
+  updated_by      String?          @db.Uuid
+  courts          BadmintonCourt[]
+}
+
+model BookingMember {
+  id                String           @id @default(uuid()) @db.Uuid
+  name              String
+  phone_number      String
+  is_payment        Boolean          @default(false)
+  is_active         Boolean          @default(true)
+  is_deleted        Boolean          @default(false)
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @default(now())
+  time_start        DateTime
+  time_end          DateTime
+  link_url          String?
+  court_id          String?          @db.Uuid
+  post_id           String?          @db.Uuid
+  skill_levels      String?
+  price             Decimal?         @db.Decimal(12, 2)
+  id_account        String?          @db.Uuid
+  id_booking        String           @db.Uuid
+  resource_id       String?          @db.Uuid
+  created_by        String?          @db.Uuid
+  updated_by        String?          @db.Uuid
+  slot              Int              @default(1)
+  host_reported     Boolean          @default(false)
+  court             BadmintonCourt?  @relation(fields: [court_id], references: [id])
+  badminton_booking BadmintonBooking @relation("BookingToMember", fields: [id_booking], references: [id])
+  post              Post?            @relation(fields: [post_id], references: [id])
+
+  @@index([id_booking])
+  @@index([court_id])
+  @@index([post_id])
+  @@index([id_account])
+  @@index([created_by])
+  @@index([time_start])
+  @@index([time_end])
+  @@index([is_payment])
+  @@index([is_active])
+  @@index([is_deleted])
+  @@index([created_at])
+}
+
+model Post {
+  id              String             @id @default(uuid()) @db.Uuid
+  author          String?
+  content         String?
+  raw_text        String?
+  posted_at       DateTime           @default(now())
+  note            String?
+  properties      Json?
+  is_active       Boolean            @default(true)
+  is_deleted      Boolean            @default(false)
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @default(now())
+  created_by      String?            @db.Uuid
+  updated_by      String?            @db.Uuid
+  bookings        BadmintonBooking[]
+  booking_members BookingMember[]
+}
+
+model Promotion {
+  id          String             @id @default(uuid()) @db.Uuid
+  name        String
+  value       Decimal            @db.Decimal(12, 2)
+  description String?
+  is_active   Boolean            @default(true)
+  is_deleted  Boolean            @default(false)
+  created_at  DateTime           @default(now())
+  updated_at  DateTime           @default(now())
+  created_by  String?            @db.Uuid
+  updated_by  String?            @db.Uuid
+  bookings    BadmintonBooking[]
+}
+
+model TournamentCategory {
+  id          String             @id @default(uuid()) @db.Uuid
+  name        String             @unique
+  description String?
+  type        MatchType
+  details     TournamentDetail[]
+}
+
+model OtpToken {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String
+  token         String
+  type          TokenType @default(EMAIL_OTP)
+  expiresAt     DateTime
+  userId        String?   @db.Uuid
+  isActive      Boolean   @default(true)
+  isUsed        Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  transactionId String    @unique @db.Uuid
+
+  @@index([email])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([transactionId])
+}
+
+model WalletTransaction {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  type        String
+  amount      Decimal  @db.Decimal(20, 2)
+  description String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model WithdrawalLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  withdrawalId String   @db.Uuid
+  userId       String   @db.Uuid
+  action       String
+  oldStatus    String?
+  newStatus    String?
+  description  String?
+  metadata     Json?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  @@index([withdrawalId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model VerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  email     String
+  token     String
+  type      TokenType @default(EMAIL_VERIFICATION)
+  userId    String?   @db.Uuid
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([email])
+  @@index([token])
+}
+
+model ErrorLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  service_name  String?
+  error_message String
+  error_stack   String?
+  error_code    String?
+  severity      String?
+  context       Json?
+  note          String?
+  properties    Json?
+  is_active     Boolean  @default(true)
+  is_deleted    Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now())
+  created_by    String?  @db.Uuid
+  updated_by    String?  @db.Uuid
+}
+
+model UserSystemConfig {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @db.Uuid
+  notifyEmailInApp Boolean  @default(true)
+  note             String?
+  properties       Json?
+  createdAt        DateTime @default(now())
+  isActive         Boolean  @default(true)
+  isDeleted        Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+  createdBy        String?  @db.Uuid
+  updatedBy        String?  @db.Uuid
+
+  @@index([userId])
+}
+
+model Order {
+  id               String      @id @default(uuid()) @db.Uuid
+  amount           Int
+  status           OrderStatus @default(PENDING)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  userId           String      @db.Uuid
+  resourceId       String?     @db.Uuid
+  resourceType     String?
+  paymentConfirmed Boolean     @default(false)
+  payments         Payment[]
+}
+
+model Payment {
+  id                String              @id @default(uuid()) @db.Uuid
+  provider          PaymentProvider
+  payUrl            String?
+  amount            Decimal
+  status            PaymentStatus       @default(PENDING)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  orderId           String              @db.Uuid
+  providerId        String?             @db.Uuid
+  order             Order               @relation(fields: [orderId], references: [id])
+  paymentResultMomo PaymentResultMomo[]
+}
+
+model PaymentResultMomo {
+  id           String   @id @default(uuid()) @db.Uuid
+  paymentId    String   @db.Uuid
+  amount       Decimal  @db.Decimal(20, 2)
+  message      String
+  orderInfo    String
+  orderType    String
+  partnerCode  String
+  payType      String
+  responseTime DateTime
+  resultCode   Int
+  transId      BigInt
+  signature    String
+  createdAt    DateTime @default(now())
+  orderId      String   @db.Uuid
+  requestId    String
+  payment      Payment  @relation(fields: [paymentId], references: [id])
+}
+
+model UserFavorite {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @unique @db.Uuid
+  courtId      String?  @db.Uuid
+  courtName    String?
+  courtAddress String?
+  districtId   String?  @db.Uuid
+  districtName String?
+  skillLevel   String?
+  note         String?
+  properties   Json?
+  isActive     Boolean  @default(true)
+  isDeleted    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String?  @db.Uuid
+  updatedBy    String?  @db.Uuid
+}
+
+enum PaymentProvider {
+  MOMO
+  VNPAY
+  COD
+}
+
+enum MediaFileCategory {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  OTHER
+}
+
+enum TokenType {
+  EMAIL_OTP
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+enum UserRole {
+  user
+  host
+  admin
+  coaching
+}
+
+enum NotificationType {
+  GENERAL         // Thông báo chung
+  BOOKING         // Thông báo về booking
+  PAYMENT         // Thông báo về thanh toán
+  SYSTEM          // Thông báo hệ thống
+  PROMOTION       // Thông báo khuyến mãi
+  REMINDER        // Nhắc nhở
+  WARNING         // Cảnh báo
+  ERROR           // Lỗi
+}
+
+enum WithdrawalMethod {
+  MOMO
+  BANK_TRANSFER
+  VNPAY
+}
+
+enum RequestStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  RETRY
+  CANCELLED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  OTP_SENT
+  OTP_VERIFIED
+  PROCESSING
+  SUCCESS
+  FAILED
+  TIMEOUT
+  CANCELLED
+  MANUAL_REVIEW
+}
+
+enum MediaFileActionType {
+  UPLOAD
+  DOWNLOAD
+}
+
+enum TournamentStatus {
+  PENDING_REGISTRATION
+  IN_PROCESS
+  COMPLETED
+  CANCELLED
+  DRAFT
+}
+
+enum ReportOwnerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+enum GroupStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum SportType {
+  BADMINTON
+  TENNIS
+  FOOTBALL
+  BASKETBALL
+  VOLLEYBALL
+  OTHER
+}
+
+enum GroupMemberRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+enum GroupMemberStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REMOVED
+  LEFT
+}
+
+enum PostStatus {
+  ACTIVE
+  CLOSED
+  CANCELLED
+  ARCHIVED
+  PENDING
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum FeedbackType {
+  CLASS
+  COURT
+  SCHEDULE
+  BOOKING
+  COACH
+}
+
+enum MatchType {
+  SINGLE
+  DOUBLE
+  TEAM
+}
+
+enum GenderType {
+  MALE
+  FEMALE
+  MIXED
+}
+
+enum MatchStatus {
+  SCHEDULED
+  IN_PROGRESS
+  FINISHED
+  CANCELLED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+  REFUND_REQUEST
+  REFUNDED
+  REFUND_FAILED
+}

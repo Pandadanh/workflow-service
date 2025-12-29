@@ -1,0 +1,11 @@
+export enum SystemConstants {
+  SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000',
+}
+
+export enum JoinBookingStatus {
+  CONTACT_HOST = 'CONTACT_HOST',
+  REQUIRE_DEPOSIT = 'REQUIRE_DEPOSIT',
+  JOIN_SUCCESS = 'JOIN_SUCCESS',
+}
+
+

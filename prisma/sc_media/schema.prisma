@@ -1,0 +1,52 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("MEDIA_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/prisma/sc_media"
+}
+
+model MediaFile {
+  userId              String?             @db.Uuid
+  id                  String              @id @default(uuid()) @db.Uuid
+  fileName            String
+  originalName        String?
+  mimeType            String?
+  sizeInBytes         BigInt?
+  storagePath         String?
+  url                 String?
+  checksum            String?
+  category            MediaFileCategory   @default(IMAGE)
+  actionType          MediaFileActionType @default(UPLOAD)
+  description         String?
+  properties          Json?
+  is_active           Boolean             @default(true)
+  is_deleted          Boolean             @default(false)
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @updatedAt
+  created_by          String?             @db.Uuid
+  updated_by          String?             @db.Uuid
+  // HLS streaming fields
+  hlsPlaylistPath     String?             // Path to m3u8 playlist in MinIO
+  hlsSegmentsFolder   String?             // Folder containing .ts segments
+  hlsProcessingStatus String?             @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  hlsResolutions      String?             // Comma-separated: 360p,480p,720p,1080p
+  hlsDuration         Int?                // Video duration in seconds
+  hlsError            String?             // Error message if processing failed
+
+  @@index([userId])
+}
+
+enum MediaFileCategory {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  OTHER
+}
+
+enum MediaFileActionType {
+  UPLOAD
+  DOWNLOAD
+}

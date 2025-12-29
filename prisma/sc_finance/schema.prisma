@@ -1,0 +1,312 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("FINANCE_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/prisma/sc_finance"
+}
+
+model Order {
+  id               String      @id @default(uuid()) @db.Uuid
+  amount           Int
+  status           OrderStatus @default(PENDING)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  userId           String      @db.Uuid
+  resourceId       String?     @db.Uuid
+  resourceType     String?
+  paymentConfirmed Boolean     @default(false)
+  // payments         Payment[] // Commented out - cross-schema relation not supported
+}
+
+model Payment {
+  id                String              @id @default(uuid()) @db.Uuid
+  provider          PaymentProvider
+  payUrl            String?
+  amount            Decimal
+  status            PaymentStatus       @default(PENDING)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  orderId           String              @db.Uuid
+  providerId        String?             @db.Uuid
+  // order             Order               @relation(fields: [orderId], references: [id])
+  paymentResultMomo PaymentResultMomo[]
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PaymentProvider {
+  MOMO
+  VNPAY
+  COD
+}
+
+model PaymentResultMomo {
+  id           String   @id @default(uuid()) @db.Uuid
+  paymentId    String   @db.Uuid
+  amount       Decimal  @db.Decimal(20, 2)
+  message      String
+  orderInfo    String
+  orderType    String
+  partnerCode  String
+  payType      String
+  responseTime DateTime
+  resultCode   Int
+  transId      BigInt
+  signature    String
+  createdAt    DateTime @default(now())
+  orderId      String   @db.Uuid
+  requestId    String
+  payment      Payment  @relation(fields: [paymentId], references: [id])
+}
+
+model RefundTransaction {
+  id           String   @id @default(uuid()) @db.Uuid
+  orderId      String   @db.Uuid
+  transId      BigInt
+  amount       Decimal  @db.Decimal(20, 2)
+  description  String?
+  resultCode   Int
+  message      String
+  responseTime DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([orderId])
+}
+
+model WithdrawalTransaction {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  userId             String                 @db.Uuid
+  walletId           String                 @db.Uuid
+  amount             Decimal                @db.Decimal(20, 2)
+  status             WithdrawalStatus       @default(PENDING)
+  method             WithdrawalMethod       @default(MOMO)
+  recipientInfo      Json
+  transactionId      String                 @unique
+  momoRequestId      String?
+  momoTransId        String?
+  requestIp          String?
+  userAgent          String?
+  deviceId           String?
+  dailyCount         Int                    @default(1)
+  weeklyAmount       Decimal                @default(0) @db.Decimal(20, 2)
+  otpSentAt          DateTime?
+  otpVerifiedAt      DateTime?
+  processedAt        DateTime?
+  completedAt        DateTime?
+  expiredAt          DateTime
+  errorMessage       String?
+  retryCount         Int                    @default(0)
+  lastRetryAt        DateTime?
+  note               String?
+  properties         Json?
+  isActive           Boolean                @default(true)
+  isDeleted          Boolean                @default(false)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  createdBy          String?                @db.Uuid
+  updatedBy          String?                @db.Uuid
+  momoResults        MomoWithdrawalResult[]
+  requestWithdrawals RequestWithdrawal[]
+  otpTokens          WithdrawalOtp[]
+  // user               User                   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([transactionId])
+  @@index([createdAt])
+  @@index([expiredAt])
+}
+
+enum WithdrawalStatus {
+  PENDING
+  OTP_SENT
+  OTP_VERIFIED
+  PROCESSING
+  SUCCESS
+  FAILED
+  TIMEOUT
+  CANCELLED
+  MANUAL_REVIEW
+}
+
+enum WithdrawalMethod {
+  MOMO
+  BANK_TRANSFER
+  VNPAY
+}
+
+model WithdrawalOtp {
+  id           String                @id @default(uuid()) @db.Uuid
+  withdrawalId String                @db.Uuid
+  userId       String                @db.Uuid
+  token        String
+  hashedToken  String
+  attemptCount Int                   @default(0)
+  maxAttempts  Int                   @default(5)
+  isUsed       Boolean               @default(false)
+  isActive     Boolean               @default(true)
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  // user         User                  @relation(fields: [userId], references: [id])
+  withdrawal   WithdrawalTransaction @relation(fields: [withdrawalId], references: [id])
+
+  @@index([withdrawalId])
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model MomoWithdrawalResult {
+  id           String                @id @default(uuid()) @db.Uuid
+  withdrawalId String                @db.Uuid
+  requestId    String
+  partnerCode  String
+  amount       Decimal               @db.Decimal(20, 2)
+  orderId      String
+  requestType  String                @default("captureWallet")
+  resultCode   Int?
+  message      String?
+  responseTime DateTime?
+  transId      String?
+  signature    String?
+  rawRequest   Json
+  rawResponse  Json?
+  isSuccess    Boolean               @default(false)
+  isProcessed  Boolean               @default(false)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  withdrawal   WithdrawalTransaction @relation(fields: [withdrawalId], references: [id])
+
+  @@index([withdrawalId])
+  @@index([requestId])
+  @@index([orderId])
+  @@index([resultCode])
+}
+
+model UserWithdrawalLimit {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @db.Uuid
+  dailyLimit      Decimal  @default(5000000) @db.Decimal(20, 2)
+  weeklyLimit     Decimal  @default(20000000) @db.Decimal(20, 2)
+  monthlyLimit    Decimal  @default(50000000) @db.Decimal(20, 2)
+  maxTransactions Int      @default(10)
+  minAmount       Decimal  @default(50000) @db.Decimal(20, 2)
+  maxAmount       Decimal  @default(2000000) @db.Decimal(20, 2)
+  todayAmount     Decimal  @default(0) @db.Decimal(20, 2)
+  todayCount      Int      @default(0)
+  weekAmount      Decimal  @default(0) @db.Decimal(20, 2)
+  monthAmount     Decimal  @default(0) @db.Decimal(20, 2)
+  lastResetDate   DateTime @default(now())
+  isActive        Boolean  @default(true)
+  isDeleted       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdBy       String?  @db.Uuid
+  updatedBy       String?  @db.Uuid
+  // user            User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model WithdrawalLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  withdrawalId String   @db.Uuid
+  userId       String   @db.Uuid
+  action       String
+  oldStatus    String?
+  newStatus    String?
+  description  String?
+  metadata     Json?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  @@index([withdrawalId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model WalletTransaction {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  type        String
+  amount      Decimal  @db.Decimal(20, 2)
+  description String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model RequestWithdrawal {
+  id            String                @id @default(uuid()) @db.Uuid
+  withdrawalId  String                @db.Uuid
+  userId        String                @db.Uuid
+  amount        Decimal               @db.Decimal(20, 2)
+  method        WithdrawalMethod      @default(MOMO)
+  recipientInfo Json
+  transactionId String                @unique
+  status        RequestStatus         @default(PENDING)
+  priority      Int                   @default(1)
+  scheduledAt   DateTime              @default(now())
+  processedAt   DateTime?
+  completedAt   DateTime?
+  errorMessage  String?
+  retryCount    Int                   @default(0)
+  maxRetries    Int                   @default(3)
+  nextRetryAt   DateTime?
+  metadata      Json?
+  isActive      Boolean               @default(true)
+  isDeleted     Boolean               @default(false)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  // user          User                  @relation(fields: [userId], references: [id])
+  withdrawal    WithdrawalTransaction @relation(fields: [withdrawalId], references: [id])
+
+  @@index([withdrawalId])
+  @@index([userId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([priority])
+  @@index([nextRetryAt])
+}
+
+enum RequestStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  RETRY
+  CANCELLED
+}
+
+model RequestRole {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  orderId    String   @db.Uuid
+  role       String
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+  REFUND_REQUEST
+  REFUNDED
+  REFUND_FAILED
+}

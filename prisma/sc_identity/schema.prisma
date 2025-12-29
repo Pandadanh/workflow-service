@@ -1,0 +1,280 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("IDENTITY_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/prisma/sc_identity"
+}
+
+model User {
+  id                     String                  @id @default(uuid()) @db.Uuid
+  username               String                  @unique
+  email                  String?                 @unique
+  password               String
+  roles                  UserRole[]              @default([user])
+  note                   String?
+  properties             Json?
+  is_active              Boolean                 @default(true)
+  is_deleted             Boolean                 @default(false)
+  created_at             DateTime                @default(now())
+  created_by             String?
+  updated_at             DateTime                @default(now())
+  updated_by             String?
+  // notifications          Notification[]
+  // Reservation relations
+  // host_reservations      Reservation[]           @relation("ReservationHost")
+  // reservations           Reservation[]           @relation("ReservationUser")
+  // point_transactions     PointTransaction[]
+  // reported_reports       ReportMatching[]        @relation("ReportedUser")
+  // reporter_reports       ReportMatching[]        @relation("Reporter")
+  //requestWithdrawals     RequestWithdrawal[]
+  transactions           Transaction[]
+  profile                UserProfile?
+  user_ranks             UserRank?
+  wallet                 UserWallet?
+  // withdrawalLimit        UserWithdrawalLimit?
+  // withdrawalOtps         WithdrawalOtp[]
+  // withdrawalTransactions WithdrawalTransaction[] // Moved to sc_finance
+  // mediaFiles             MediaFile[]
+
+  // Tournament module relations
+  // hosted_tournaments     Tournament[]            @relation("UserHostedTournaments")
+  // players                Player[]
+
+  // report owner relations
+  // reported_owners        ReportOwner[]           @relation("Reporter")
+  // owned_reports          ReportOwner[]           @relation("ReportOwnerUser")
+  bankAccounts UserBankAccount[]
+
+  // Group relations
+  // managed_groups         Group[]                 @relation("GroupManager")
+  // group_members          GroupMember[]           @relation("GroupMemberUser")
+  // group_posts            GroupPost[]             @relation("GroupPostAuthor")
+
+  // Course relations
+  // channels               CourseChannel[]         @relation("CoachChannels")
+  // enrollments            CourseEnrollment[]
+  // feedbacks              Feedback[]
+
+  // GroupPost relaition
+  // post_likes             PostLike[]
+  // post_comments          PostComment[]
+  // post_shares            PostShare[]
+
+  @@index([username])
+  @@index([email])
+  @@index([roles])
+  @@index([created_at])
+  @@index([is_active])
+  @@index([is_deleted])
+}
+
+enum UserRole {
+  user
+  host
+  admin
+  coaching
+}
+
+model UserProfile {
+  id            String    @id @default(uuid()) @db.Uuid
+  user_id       String    @unique @db.Uuid
+  first_name    String?
+  last_name     String?
+  phone_number  String?
+  email         String?   @unique
+  date_of_birth DateTime?
+  gender        String?
+  avatar_url    String?
+  bio           String?
+  address       String?
+  social_links  Json?
+  properties    Json?
+  is_active     Boolean   @default(true)
+  is_deleted    Boolean   @default(false)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @default(now())
+  created_by    String?   @db.Uuid
+  updated_by    String?   @db.Uuid
+  user          User      @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+  @@index([phone_number])
+}
+
+model OtpToken {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String
+  token         String
+  type          TokenType @default(EMAIL_OTP)
+  expiresAt     DateTime
+  userId        String?   @db.Uuid
+  isActive      Boolean   @default(true)
+  isUsed        Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  transactionId String    @unique @db.Uuid
+
+  @@index([email])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([transactionId])
+}
+
+enum TokenType {
+  EMAIL_OTP
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+model VerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  email     String
+  token     String
+  type      TokenType @default(EMAIL_VERIFICATION)
+  userId    String?   @db.Uuid
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([email])
+  @@index([token])
+}
+
+// WithdrawalTransaction moved to sc_finance/schema.prisma
+// WithdrawalStatus enum moved to sc_finance/schema.prisma
+// WithdrawalMethod enum moved to sc_finance/schema.prisma
+
+model UserFavorite {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @unique @db.Uuid
+  courtId      String?  @db.Uuid
+  courtName    String?
+  courtAddress String?
+  districtId   String?  @db.Uuid
+  districtName String?
+  skillLevel   String?
+  note         String?
+  properties   Json?
+  isActive     Boolean  @default(true)
+  isDeleted    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String?  @db.Uuid
+  updatedBy    String?  @db.Uuid
+}
+
+model RankLevel {
+  id              String      @id @default(uuid()) @db.Uuid
+  rank_name       String
+  note            String?
+  properties      Json?
+  is_active       Boolean     @default(true)
+  is_deleted      Boolean     @default(false)
+  created_at      DateTime    @default(now())
+  updated_at      DateTime    @default(now())
+  created_by      String?     @db.Uuid
+  updated_by      String?     @db.Uuid
+  next_level_id   String?     @db.Uuid
+  next_level      RankLevel?  @relation("NextRankLevel", fields: [next_level_id], references: [id])
+  previous_levels RankLevel[] @relation("NextRankLevel")
+  user_ranks      UserRank[]
+
+  @@index([next_level_id])
+}
+
+model UserRank {
+  id            String     @id @default(uuid()) @db.Uuid
+  user_id       String     @unique @db.Uuid
+  current_point Int        @default(0)
+  rank_id       String?    @db.Uuid
+  note          String?
+  properties    Json?
+  is_active     Boolean    @default(true)
+  is_deleted    Boolean    @default(false)
+  created_at    DateTime   @default(now())
+  updated_at    DateTime   @default(now())
+  created_by    String?    @db.Uuid
+  updated_by    String?    @db.Uuid
+  rank_level    RankLevel? @relation(fields: [rank_id], references: [id])
+  user          User       @relation(fields: [user_id], references: [id])
+}
+
+model UserSystemConfig {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @db.Uuid
+  notifyEmailInApp Boolean  @default(true)
+  note             String?
+  properties       Json?
+  createdAt        DateTime @default(now())
+  isActive         Boolean  @default(true)
+  isDeleted        Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+  createdBy        String?  @db.Uuid
+  updatedBy        String?  @db.Uuid
+
+  @@index([userId])
+}
+
+model UserBankAccount {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  bankId        Int?
+  bankCode      String?  @db.VarChar(20)
+  bankBin       String?  @db.VarChar(20)
+  bankName      String
+  accountNumber String
+  accountName   String
+  note          String?
+  isActive      Boolean  @default(true)
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([accountNumber])
+}
+
+model UserWallet {
+  id            String                  @id @default(uuid()) @db.Uuid
+  userId        String                  @unique @db.Uuid
+  balance       Decimal                 @default(0) @db.Decimal(20, 2)
+  frozenBalance Decimal                 @default(0) @db.Decimal(20, 2)
+  version       Int                     @default(1)
+  lastUpdated   DateTime                @default(now())
+  isActive      Boolean                 @default(true)
+  isDeleted     Boolean                 @default(false)
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  createdBy     String?                 @db.Uuid
+  updatedBy     String?                 @db.Uuid
+  user          User                    @relation(fields: [userId], references: [id])
+  // withdrawals   WithdrawalTransaction[] // Moved to sc_finance
+
+  @@index([userId])
+  @@index([balance])
+}
+
+model Transaction {
+  id            String    @id @default(uuid()) @db.Uuid
+  user_id       String    @db.Uuid
+  access_token  String
+  refresh_token String
+  expired_at    DateTime?
+  ip_address    String?
+  user_agent    String?
+  note          String?
+  properties    Json?
+  is_active     Boolean   @default(true)
+  is_deleted    Boolean   @default(false)
+  created_at    DateTime  @default(now())
+  created_by    String?
+  updated_at    DateTime  @default(now())
+  updated_by    String?
+  user          User      @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+}

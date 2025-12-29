@@ -1,0 +1,125 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("COMMON_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/prisma/sc_common"
+}
+
+model ErrorLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  service_name  String?
+  error_message String
+  error_stack   String?
+  error_code    String?
+  severity      String?
+  context       Json?
+  note          String?
+  properties    Json?
+  is_active     Boolean  @default(true)
+  is_deleted    Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now())
+  created_by    String?  @db.Uuid
+  updated_by    String?  @db.Uuid
+}
+
+model FailedQueueMessage {
+  id           String    @id @default(uuid()) @db.Uuid
+  queueName    String
+  messageType  String
+  messageData  Json
+  errorMessage String
+  errorStack   String?
+  retryCount   Int       @default(0)
+  lastRetryAt  DateTime?
+  failedAt     DateTime  @default(now())
+  isResolved   Boolean   @default(false)
+  resolvedAt   DateTime?
+  resolvedBy   String?   @db.Uuid
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([queueName])
+  @@index([messageType])
+  @@index([isResolved])
+  @@index([failedAt])
+}
+
+model BehaviorUser {
+  id            String   @id @default(uuid()) @db.Uuid
+  user_ip       String
+  action_type   String
+  search_params Json?
+  user_agent    String?
+  referrer      String?
+  session_id    String?
+  note          String?
+  properties    Json?
+  is_active     Boolean  @default(true)
+  is_deleted    Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now())
+  created_by    String?  @db.Uuid
+  updated_by    String?  @db.Uuid
+}
+
+model District {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String
+  longitude       Decimal? @db.Decimal(10, 6)
+  latitude        Decimal? @db.Decimal(10, 6)
+  note            String?
+  properties      Json?
+  is_active       Boolean  @default(true)
+  is_deleted      Boolean  @default(false)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @default(now())
+  name_normalized String?
+  created_by      String?  @db.Uuid
+  updated_by      String?  @db.Uuid
+}
+
+model Geography {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  code          Int      @unique
+  division_type String?
+  codename      String?  @unique
+  phone_code    Int?
+  note          String?
+  properties    Json?
+  is_active     Boolean  @default(true)
+  is_deleted    Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now())
+  created_by    String?  @db.Uuid
+  updated_by    String?  @db.Uuid
+
+  @@index([code])
+  @@index([codename])
+  @@index([is_active])
+}
+
+model Bank {
+  id                Int      @id @default(autoincrement())
+  name              String
+  code              String?  @db.VarChar(20)
+  bin               String?  @db.VarChar(20)
+  shortName         String?  @db.VarChar(100)
+  short_name        String?  @db.VarChar(100)
+  logo              String?
+  transferSupported Int?     @default(0)
+  lookupSupported   Int?     @default(0)
+  support           Int?     @default(0)
+  isTransfer        Int?     @default(0)
+  swift_code        String?  @db.VarChar(50)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  @@index([code])
+  @@index([bin])
+}

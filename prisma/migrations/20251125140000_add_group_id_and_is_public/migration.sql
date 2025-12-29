@@ -1,0 +1,2 @@
+ALTER TABLE "BadmintonBooking" ADD COLUMN IF NOT EXISTS "group_id" UUID;
+ALTER TABLE "BadmintonBooking" ADD COLUMN IF NOT EXISTS "is_public" BOOLEAN DEFAULT false;

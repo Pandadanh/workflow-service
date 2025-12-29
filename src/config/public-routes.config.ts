@@ -1,0 +1,17 @@
+export const PublicRoutes: string[] = [
+  '/auth/signin',
+  '/auth/register',
+  '/auth/refresh-token',
+  '/auth/check-email',
+  '/auth/signup',
+  '/auth/refresh',
+  '/auth/social-login',
+  '/queue-consumer/otp/send',
+  '/queue-consumer/otp/verify',
+  '/queue-consumer/login/step1',
+  '/queue-consumer/login/verify-otp',
+  '/queue-consumer/login/step2',
+  '/hosts',
+  '/badminton-courts',
+  '/badminton-bookings',
+];

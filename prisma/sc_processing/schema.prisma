@@ -1,0 +1,837 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("PROCESSING_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/prisma/sc_processing"
+}
+
+model BadmintonCourt {
+  id                String             @id @default(uuid()) @db.Uuid
+  court_name        String
+  court_address     String?
+  court_phone       String?
+  owner_name        String?
+  name_normalized   String?
+  longitude         Decimal?           @db.Decimal(10, 6)
+  latitude          Decimal?           @db.Decimal(10, 6)
+  price_casual      Decimal?           @db.Decimal(12, 2)
+  price_fixed       Decimal?           @db.Decimal(12, 2)
+  note              String?
+  properties        Json?
+  is_active         Boolean            @default(true)
+  is_deleted        Boolean            @default(false)
+  created_at        DateTime           @default(now())
+  updated_at        DateTime           @default(now())
+  district_id       String?            @db.Uuid
+  created_by        String?            @db.Uuid
+  updated_by        String?            @db.Uuid
+  bookings          BadmintonBooking[]
+  // district          District?          @relation(fields: [district_id], references: [id])
+  booking_members   BookingMember[]
+  tournaments       Tournament[]
+  tournamentMatches TournamentMatch[]
+  reservations      Reservation[]
+  report_owners     ReportOwner[]      @relation("CourtReportOwner")
+  schedules         CourseSchedule[] 
+}
+
+model BadmintonBooking {
+  court_id                        String?            @db.Uuid
+  post_id                         String?            @db.Uuid
+  group_id                        String?            @db.Uuid
+  court_name                      String?
+  court_address                   String?
+  host_phone                      String?
+  host_name                       String?
+  note                            String?
+  properties                      Json?
+  is_active                       Boolean            @default(true)
+  is_deleted                      Boolean            @default(false)
+  is_public                       Boolean            @default(false)
+  created_at                      DateTime           @default(now())
+  updated_at                      DateTime           @default(now())
+  time_start                      DateTime
+  time_end                        DateTime
+  price                           Decimal?           @db.Decimal(12, 2)
+  skill_levels                    String?
+  link_url                        String?
+  count                           Int?
+  price_man                       Decimal?           @db.Decimal(12, 2)
+  price_woman                     Decimal?           @db.Decimal(12, 2)
+  id                              String             @id @default(uuid()) @db.Uuid
+  created_by                      String?            @db.Uuid
+  updated_by                      String?            @db.Uuid
+  require_deposit                 Boolean            @default(false)
+  is_promotion                    Boolean            @default(false)
+  promotion_id                    String?            @db.Uuid
+  court                           BadmintonCourt?    @relation(fields: [court_id], references: [id])
+  post                            Post?              @relation(fields: [post_id], references: [id])
+  group                           Group?             @relation(fields: [group_id], references: [id]) 
+  promotion                       Promotion?         @relation(fields: [promotion_id], references: [id])
+  booking_members                 BookingMember[]    @relation("BookingToMember")
+  point_transactions              PointTransaction[]
+  reports ReportMatching[]
+  report_owners                   ReportOwner[]
+  insufficient_slots_notified_at  DateTime?
+
+  //Booking schedule
+  recurring_days                  String[]         @default([])
+
+  @@index([court_id])
+  @@index([post_id])
+  @@index([group_id])
+  @@index([created_by])
+  @@index([time_start])
+  @@index([time_end])
+  @@index([is_active])
+  @@index([is_deleted])
+  @@index([created_at])
+  @@index([promotion_id])
+  @@index([insufficient_slots_notified_at])
+}
+
+model BookingMember {
+  id                String           @id @default(uuid()) @db.Uuid
+  name              String
+  phone_number      String
+  is_payment        Boolean          @default(false)
+  is_active         Boolean          @default(true)
+  is_deleted        Boolean          @default(false)
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @default(now())
+  time_start        DateTime
+  time_end          DateTime
+  link_url          String?
+  court_id          String?          @db.Uuid
+  post_id           String?          @db.Uuid
+  skill_levels      String?
+  price             Decimal?         @db.Decimal(12, 2)
+  id_account        String?          @db.Uuid
+  id_booking        String           @db.Uuid
+  resource_id       String?          @db.Uuid
+  created_by        String?          @db.Uuid
+  updated_by        String?          @db.Uuid
+  slot              Int              @default(1)
+  host_reported     Boolean          @default(false)
+  court             BadmintonCourt?  @relation(fields: [court_id], references: [id])
+  badminton_booking BadmintonBooking @relation("BookingToMember", fields: [id_booking], references: [id])
+  post              Post?            @relation(fields: [post_id], references: [id])
+
+  @@index([id_booking])
+  @@index([court_id])
+  @@index([post_id])
+  @@index([id_account])
+  @@index([created_by])
+  @@index([time_start])
+  @@index([time_end])
+  @@index([is_payment])
+  @@index([is_active])
+  @@index([is_deleted])
+  @@index([created_at])
+}
+
+model Promotion {
+  id          String             @id @default(uuid()) @db.Uuid
+  name        String
+  value       Decimal            @db.Decimal(12, 2)
+  description String?
+  is_active   Boolean            @default(true)
+  is_deleted  Boolean            @default(false)
+  created_at  DateTime           @default(now())
+  updated_at  DateTime           @default(now())
+  created_by  String?            @db.Uuid
+  updated_by  String?            @db.Uuid
+  bookings    BadmintonBooking[]
+}
+
+model Post {
+  id              String             @id @default(uuid()) @db.Uuid
+  author          String?
+  content         String?
+  raw_text        String?
+  posted_at       DateTime           @default(now())
+  note            String?
+  properties      Json?
+  is_active       Boolean            @default(true)
+  is_deleted      Boolean            @default(false)
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @default(now())
+  created_by      String?            @db.Uuid
+  updated_by      String?            @db.Uuid
+  bookings        BadmintonBooking[]
+  booking_members BookingMember[]
+}
+
+model PointTransaction {
+  id           String            @id @default(uuid()) @db.Uuid
+  user_id      String            @db.Uuid
+  booking_id   String?           @db.Uuid
+  point_change Int               @default(10)
+  reason       String?
+  bonus        Int               @default(0)
+  note         String?
+  properties   Json?
+  is_active    Boolean           @default(true)
+  is_deleted   Boolean           @default(false)
+  created_at   DateTime          @default(now())
+  updated_at   DateTime          @default(now())
+  created_by   String?           @db.Uuid
+  updated_by   String?           @db.Uuid
+  booking      BadmintonBooking? @relation(fields: [booking_id], references: [id])
+  // user         User              @relation(fields: [user_id], references: [id])
+
+  @@unique([user_id, booking_id])
+}
+
+model ReportMatching {
+  id                String            @id @default(uuid()) @db.Uuid
+  reported_user_id  String            @db.Uuid
+  reporter_id       String            @db.Uuid
+  reason            String?
+  status            String            @default("pending")
+  booking_id        String?           @db.Uuid
+  note              String?
+  properties        Json?
+  is_active         Boolean           @default(true)
+  is_deleted        Boolean           @default(false)
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @default(now())
+  created_by        String?           @db.Uuid
+  updated_by        String?           @db.Uuid
+
+  // reported_user     User              @relation("ReportedUser", fields: [reported_user_id], references: [id])
+  // reporter          User              @relation("Reporter", fields: [reporter_id], references: [id])
+  booking           BadmintonBooking? @relation(fields: [booking_id], references: [id])
+}
+
+model ReportOwner {
+  id               String           @id @default(uuid()) @db.Uuid
+  reporter_id      String           @db.Uuid
+  owner_user_id    String            @db.Uuid
+  booking_id       String?          @db.Uuid
+  court_id         String?          @db.Uuid
+  reason           String?          
+  note             String?          
+  properties       Json?            
+  status           ReportOwnerStatus @default(PENDING)
+  rating           Int?             @db.SmallInt
+  is_active        Boolean          @default(true)
+  is_deleted       Boolean          @default(false)
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @default(now())
+  created_by       String?          @db.Uuid
+  updated_by       String?          @db.Uuid
+
+  // relations
+  // reporter         User              @relation("Reporter", fields: [reporter_id], references: [id])
+  // owner_user       User              @relation("ReportOwnerUser", fields: [owner_user_id], references: [id])
+  court            BadmintonCourt?   @relation("CourtReportOwner", fields: [court_id], references: [id])
+  booking          BadmintonBooking? @relation(fields: [booking_id], references: [id])
+}
+
+enum ReportOwnerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+model Reservation {
+  id              String         @id @default(uuid()) @db.Uuid
+  court_id        String         @db.Uuid
+  host_id         String         @db.Uuid
+  user_id         String         @db.Uuid
+  is_active       Boolean        @default(true)
+  is_deleted      Boolean        @default(false)
+  created_at      DateTime       @default(now())
+  updated_at      DateTime       @default(now())
+  created_by      String?        @db.Uuid
+  updated_by      String?        @db.Uuid
+  court           BadmintonCourt @relation(fields: [court_id], references: [id])
+  //host            User           @relation("ReservationHost", fields: [host_id], references: [id])
+  //user            User           @relation("ReservationUser", fields: [user_id], references: [id])
+
+  @@index([court_id])
+  @@index([host_id])
+  @@index([user_id])
+  @@index([created_at])
+  @@index([is_active])
+}
+
+model Tournament {
+  id         String             @id @default(uuid()) @db.Uuid
+  name       String
+  host_id    String             @db.Uuid
+  court_id   String?            @db.Uuid
+  rules      String?
+  link_url   String?
+  properties Json?
+  time_start DateTime?
+  time_end   DateTime?
+  status     TournamentStatus   @default(DRAFT)
+  is_active  Boolean            @default(true)
+  is_deleted Boolean            @default(false)
+  created_at DateTime           @default(now())
+  updated_at DateTime           @default(now())
+  created_by String?            @db.Uuid
+  updated_by String?            @db.Uuid
+  players    Player[]
+  court      BadmintonCourt?    @relation(fields: [court_id], references: [id])
+  // host       User               @relation("UserHostedTournaments", fields: [host_id], references: [id])
+  details    TournamentDetail[]
+  matches    TournamentMatch[]
+  teams      TournamentTeam[]
+}
+
+model TournamentDetail {
+  id            String             @id @default(uuid()) @db.Uuid
+  tournament_id String             @db.Uuid
+  category_id   String             @db.Uuid
+  type          MatchType
+  gender_type   GenderType?
+  slot          Int?
+  skill_level   String?
+  rules         String?
+  prizes        String?
+  price         Decimal?           @db.Decimal(12, 2)
+  price_men     Decimal?           @db.Decimal(12, 2)
+  price_women   Decimal?           @db.Decimal(12, 2)
+  time_start    DateTime?
+  time_end      DateTime?
+  is_active     Boolean            @default(true)
+  is_deleted    Boolean            @default(false)
+  created_at    DateTime           @default(now())
+  updated_at    DateTime           @updatedAt
+  created_by    String?            @db.Uuid
+  updated_by    String?            @db.Uuid
+  players       Player[]
+  category      TournamentCategory @relation(fields: [category_id], references: [id])
+  tournament    Tournament         @relation(fields: [tournament_id], references: [id])
+  matches       TournamentMatch[]
+  teams         TournamentTeam[]
+}
+
+enum TournamentStatus {
+  PENDING_REGISTRATION
+  IN_PROCESS
+  COMPLETED
+  CANCELLED
+  DRAFT
+}
+
+enum GenderType {
+  MALE
+  FEMALE
+  MIXED
+}
+
+model TournamentCategory {
+  id          String             @id @default(uuid()) @db.Uuid
+  name        String             @unique
+  description String?
+  type        MatchType
+  details     TournamentDetail[]
+}
+
+enum MatchType {
+  SINGLE
+  DOUBLE
+  TEAM
+}
+
+model TournamentTeam {
+  id                   String            @id @default(uuid()) @db.Uuid
+  tournament_id        String            @db.Uuid
+  tournament_detail_id String            @db.Uuid
+  name                 String
+  captain_id           String?           @db.Uuid
+  slots_member         Json
+  members_count        Int               @default(0)
+  is_active            Boolean           @default(true)
+  is_deleted           Boolean           @default(false)
+  created_at           DateTime          @default(now())
+  updated_at           DateTime          @default(now())
+  created_by           String?           @db.Uuid
+  updated_by           String?           @db.Uuid
+  players              Player[]
+  guest_matches        TournamentMatch[] @relation("MatchGuestTeam")
+  home_matches         TournamentMatch[] @relation("MatchHomeTeam")
+  won_matches          TournamentMatch[] @relation("MatchWinnerTeam")
+  tournament_detail    TournamentDetail  @relation(fields: [tournament_detail_id], references: [id])
+  tournament           Tournament        @relation(fields: [tournament_id], references: [id])
+
+  @@unique([tournament_id, tournament_detail_id, name])
+  @@index([tournament_detail_id])
+  @@index([captain_id])
+}
+
+enum MatchStatus {
+  SCHEDULED
+  IN_PROGRESS
+  FINISHED
+  CANCELLED
+}
+
+model TournamentMatch {
+  id                   String           @id @default(uuid()) @db.Uuid
+  tournament_id        String           @db.Uuid
+  tournament_detail_id String           @db.Uuid
+  court_id             String?          @db.Uuid
+  court_name           String?
+  match_type           MatchType
+  start_time           DateTime?
+  end_time             DateTime?
+  team_home_id         String           @db.Uuid
+  team_guest_id        String           @db.Uuid
+  winner_id            String?          @db.Uuid
+  status               MatchStatus      @default(SCHEDULED)
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @default(now())
+  court                BadmintonCourt?  @relation(fields: [court_id], references: [id])
+  team_guest           TournamentTeam   @relation("MatchGuestTeam", fields: [team_guest_id], references: [id])
+  team_home            TournamentTeam   @relation("MatchHomeTeam", fields: [team_home_id], references: [id])
+  tournament_detail    TournamentDetail @relation(fields: [tournament_detail_id], references: [id])
+  tournament           Tournament       @relation(fields: [tournament_id], references: [id])
+  winner_team          TournamentTeam?  @relation("MatchWinnerTeam", fields: [winner_id], references: [id])
+
+  @@index([tournament_id])
+  @@index([status])
+  @@index([match_type])
+}
+
+model Player {
+  id                   String           @id @default(uuid()) @db.Uuid
+  tournament_id        String           @db.Uuid
+  tournament_detail_id String           @db.Uuid
+  user_id              String           @db.Uuid
+  team_id              String?          @db.Uuid
+  is_active            Boolean          @default(true)
+  is_deleted           Boolean          @default(false)
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @updatedAt
+  created_by           String?          @db.Uuid
+  updated_by           String?          @db.Uuid
+  team                 TournamentTeam?  @relation(fields: [team_id], references: [id])
+  tournament_detail    TournamentDetail @relation(fields: [tournament_detail_id], references: [id])
+  tournament           Tournament       @relation(fields: [tournament_id], references: [id])
+  // user                 User             @relation(fields: [user_id], references: [id])
+
+  @@unique([tournament_id, tournament_detail_id, user_id])
+  @@index([user_id])
+  @@index([team_id])
+  @@index([tournament_detail_id])
+}
+
+model Notification {
+  id           String               @id @default(uuid()) @db.Uuid
+  userId       String               @db.Uuid
+  title        String
+  message      String
+  type         NotificationType     @default(GENERAL)
+  isRead       Boolean              @default(false)
+  readAt       DateTime?
+  resourceId   String?              @db.Uuid
+  resourceType String?
+  actionUrl    String?
+  metadata     Json?
+  note         String?
+  properties   Json?
+  isActive     Boolean              @default(true)
+  isDeleted    Boolean              @default(false)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  createdBy    String?              @db.Uuid
+  updatedBy    String?              @db.Uuid
+  // user         User                 @relation(fields: [userId], references: [id])
+  details      NotificationDetail[]
+
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
+  @@index([createdAt])
+  @@index([resourceId])
+  @@index([resourceType])
+}
+
+model NotificationDetail {
+  id             String       @id @default(uuid()) @db.Uuid
+  notificationId String       @db.Uuid
+  content        String
+  contentType    String       @default("text")
+  imageUrl       String?
+  actionLabel    String?
+  actionUrl      String?
+  priority       Int          @default(1)
+  metadata       Json?
+  note           String?
+  properties     Json?
+  isActive       Boolean      @default(true)
+  isDeleted      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  createdBy      String?      @db.Uuid
+  updatedBy      String?      @db.Uuid
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+enum NotificationType {
+  GENERAL         // Thông báo chung
+  BOOKING         // Thông báo về booking
+  PAYMENT         // Thông báo về thanh toán
+  SYSTEM          // Thông báo hệ thống
+  PROMOTION       // Thông báo khuyến mãi
+  REMINDER        // Nhắc nhở
+  WARNING         // Cảnh báo
+  ERROR           // Lỗi
+}
+
+// Group system
+model Group {
+  id                 String        @id @default(uuid()) @db.Uuid
+  name               String
+  description        String?
+  status             GroupStatus   @default(ACTIVE)
+  sport_type         SportType     @default(BADMINTON)
+  skill_level        String?
+  city_id            String?       @db.Uuid
+  city_name          String?
+  district_id        String?       @db.Uuid
+  district_name      String?
+  manager_id         String        @db.Uuid
+  avatar_url         String?
+  cover_image_url    String?
+  member_count       Int           @default(0)
+  max_members        Int?
+  is_public          Boolean       @default(true)
+  require_approval   Boolean       @default(true)
+  note               String?
+  properties         Json?
+  is_active          Boolean       @default(true)
+  is_deleted         Boolean       @default(false)
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @default(now())
+  created_by         String?       @db.Uuid
+  updated_by         String?       @db.Uuid
+  
+  // manager            User          @relation("GroupManager", fields: [manager_id], references: [id])
+  members            GroupMember[]
+  posts              GroupPost[]
+  bookings           BadmintonBooking[]
+  
+  @@index([manager_id])
+  @@index([status])
+  @@index([sport_type])
+  @@index([city_id])
+  @@index([district_id])
+  @@index([is_active])
+  @@index([created_at])
+}
+
+enum SportType {
+  BADMINTON
+  TENNIS
+  FOOTBALL
+  BASKETBALL
+  VOLLEYBALL
+  OTHER
+}
+
+model GroupMember {
+  id              String             @id @default(uuid()) @db.Uuid
+  group_id        String             @db.Uuid
+  user_id         String             @db.Uuid
+  role            GroupMemberRole    @default(MEMBER)
+  status          GroupMemberStatus  @default(PENDING)
+  joined_at       DateTime?
+  requested_at    DateTime           @default(now())
+  approved_by     String?            @db.Uuid
+  approved_at     DateTime?
+  rejected_by     String?            @db.Uuid
+  rejected_at     DateTime?
+  rejected_reason String?
+  note            String?
+  properties      Json?
+  is_active       Boolean            @default(true)
+  is_deleted      Boolean            @default(false)
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @default(now())
+  created_by      String?            @db.Uuid
+  updated_by      String?            @db.Uuid
+
+  group           Group              @relation(fields: [group_id], references: [id])
+  // user            User               @relation("GroupMemberUser", fields: [user_id], references: [id])
+
+  @@unique([group_id, user_id])
+  @@index([group_id])
+  @@index([user_id])
+  @@index([status])
+  @@index([role])
+  @@index([created_at])
+}
+
+enum GroupMemberRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+enum GroupMemberStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REMOVED
+  LEFT
+}
+
+model GroupPost {
+  id              String         @id @default(uuid()) @db.Uuid
+  group_id        String         @db.Uuid
+  author_id       String         @db.Uuid
+  media_ids       String?        @db.Text
+  content         String
+  like_count      Int            @default(0)
+  comment_count   Int            @default(0)
+  view_count      Int            @default(0)
+  share_count     Int            @default(0)
+  status          PostStatus     @default(PENDING)
+  is_active       Boolean        @default(true)
+  is_deleted      Boolean        @default(false)
+  note            String?
+  properties      Json?
+  created_at      DateTime       @default(now())
+  updated_at      DateTime       @default(now())
+  created_by      String?        @db.Uuid
+  updated_by      String?        @db.Uuid
+
+  group           Group          @relation(fields: [group_id], references: [id])
+  // author          User           @relation("GroupPostAuthor", fields: [author_id], references: [id])
+  // media           MediaFile[]
+  likes           PostLike[]
+  comments        PostComment[]
+  shares          PostShare[]
+
+  @@index([group_id])
+  @@index([author_id])
+  @@index([created_at])
+}
+
+model PostLike {
+  id         String    @id @default(uuid()) @db.Uuid
+  post_id    String    @db.Uuid
+  user_id    String    @db.Uuid
+  is_active            Boolean              @default(true)
+  is_deleted           Boolean              @default(false)
+  created_at DateTime  @default(now())
+  updated_at DateTime  @default(now())
+  
+  post       GroupPost @relation(fields: [post_id], references: [id])
+  // user       User      @relation(fields: [user_id], references: [id])
+
+  @@unique([post_id, user_id]) // 1 person can only like once
+}
+
+model PostComment {
+  id          String        @id @default(uuid()) @db.Uuid
+  post_id     String        @db.Uuid
+  user_id     String        @db.Uuid
+  content     String
+  parent_id   String?       @db.Uuid   // reply comment
+  is_active   Boolean       @default(true)
+  is_deleted  Boolean       @default(false)
+  created_at  DateTime      @default(now())
+  updated_at  DateTime      @default(now())
+
+  post        GroupPost     @relation(fields: [post_id], references: [id])
+  // user        User          @relation(fields: [user_id], references: [id])
+  // self relation
+  parent      PostComment?  @relation("CommentReplies", fields: [parent_id], references: [id])
+  replies     PostComment[] @relation("CommentReplies")
+
+  @@index([post_id])
+}
+
+model PostShare {
+  id          String     @id @default(uuid()) @db.Uuid
+  post_id     String     @db.Uuid
+  user_id     String     @db.Uuid
+  content     String
+  is_active   Boolean    @default(true)
+  is_deleted  Boolean    @default(false)
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @default(now())
+
+  post        GroupPost  @relation(fields: [post_id], references: [id])
+  // user        User       @relation(fields: [user_id], references: [id])
+}
+
+enum PostStatus {
+  ACTIVE
+  CLOSED
+  CANCELLED
+  ARCHIVED
+  PENDING
+}
+
+enum GroupPostType {
+  RECRUITMENT    // Tuyển thành viên
+  ANNOUNCEMENT   // Thông báo
+  EVENT          // Sự kiện
+  DISCUSSION     // Thảo luận
+  OTHER
+}
+
+enum GroupStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+model CourseSchedule {
+  id            String              @id @default(uuid()) @db.Uuid
+  class_id      String              @db.Uuid
+  court_id      String              @db.Uuid
+  monday        Boolean             @default(false)
+  tuesday       Boolean             @default(false)
+  wednesday     Boolean             @default(false)
+  thursday      Boolean             @default(false)
+  friday        Boolean             @default(false)
+  saturday      Boolean             @default(false)
+  sunday        Boolean             @default(false)
+  max_students  Int
+  price         Decimal             @db.Decimal(12, 2)
+  target_amount Int?
+  description   String?
+  date_start    DateTime
+  date_end      DateTime
+  time_start    DateTime
+  time_end      DateTime
+  is_recurring  Boolean             @default(false)
+  is_active     Boolean             @default(true)
+  is_deleted    Boolean             @default(false)
+  created_at    DateTime            @default(now())
+  updated_at    DateTime            @updatedAt
+  created_by    String?
+  updated_by    String?
+
+  // Relations
+  class         CourseClass         @relation(fields: [class_id], references: [id])
+  court         BadmintonCourt?     @relation(fields: [court_id], references: [id])
+  enrollments   CourseEnrollment[]
+  feedbacks     Feedback[]
+}
+
+model CourseClass {
+  id           String        @id @default(uuid()) @db.Uuid
+  channel_id   String        @db.Uuid
+  class_name   String
+  description  String?
+  is_active    Boolean       @default(true)
+  is_deleted   Boolean       @default(false)
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+  created_by   String?       @db.Uuid
+  updated_by   String?       @db.Uuid
+
+  // Relations
+  course       CourseChannel @relation(fields: [channel_id], references: [id])
+  schedules    CourseSchedule[]
+}
+
+model CourseChannel {
+  id           String        @id @default(uuid()) @db.Uuid
+  coach_id     String        @db.Uuid
+  name         String
+  description  String?
+  is_active    Boolean       @default(true)
+  is_deleted   Boolean       @default(false)
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+  created_by   String?
+  updated_by   String?
+  // Relations
+  // coach        User          @relation("CoachChannels", fields: [coach_id], references: [id])
+  classes      CourseClass[]
+}
+
+model CourseEnrollment {
+  id           String          @id @default(uuid()) @db.Uuid
+  user_id      String          @db.Uuid
+  schedule_id  String          @db.Uuid
+  note         String?
+  is_payment   Boolean         @default(false)
+  status       PaymentStatus   @default(PENDING) 
+  is_active    Boolean         @default(true)
+  is_deleted   Boolean         @default(false)
+  created_at   DateTime        @default(now())
+  updated_at   DateTime        @updatedAt
+  created_by   String?
+  updated_by   String?
+
+  // Relations
+  schedule     CourseSchedule  @relation(fields: [schedule_id], references: [id])
+  // user         User            @relation(fields: [user_id], references: [id])
+  orders       CourseOrder[]
+}
+model CourseOrder {
+  id            String           @id @default(uuid()) @db.Uuid
+  enrollment_id String           @db.Uuid
+  total_amount  Decimal          @db.Decimal(12, 2)
+  billing_date  DateTime
+  paid_at       DateTime?
+  status        OrderStatus      @default(PENDING) 
+  created_at    DateTime         @default(now())
+  updated_at    DateTime         @updatedAt
+  created_by    String?
+  updated_by    String?
+  // Relations
+  enrollment    CourseEnrollment @relation(fields: [enrollment_id], references: [id])
+}
+
+// Order model moved to sc_finance/schema.prisma
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+  REFUND_REQUEST
+  REFUNDED
+  REFUND_FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model Feedback {
+  id           String          @id @default(uuid()) @db.Uuid
+  target_id    String          @db.Uuid
+  type         FeedbackType
+  comment      String?
+  is_visible   Boolean         @default(true)
+  created_at   DateTime        @default(now())
+  updated_at   DateTime        @updatedAt
+  created_by   String?         @db.Uuid
+  updated_by   String?
+
+  // user         User?           @relation(fields: [created_by], references: [id])
+  schedule     CourseSchedule? @relation(fields: [target_id], references: [id])
+}
+enum FeedbackType {
+  CLASS
+  COURT
+  SCHEDULE
+  BOOKING
+  COACH
+}

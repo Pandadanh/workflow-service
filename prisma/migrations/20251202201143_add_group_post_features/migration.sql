@@ -1,0 +1,18 @@
+ALTER TABLE "public"."GroupPost" 
+DROP COLUMN IF EXISTS "is_pinned",
+DROP COLUMN IF EXISTS "location",
+DROP COLUMN IF EXISTS "post_type",
+DROP COLUMN IF EXISTS "skill_level",
+DROP COLUMN IF EXISTS "slots_filled",
+DROP COLUMN IF EXISTS "slots_needed",
+DROP COLUMN IF EXISTS "time_end",
+DROP COLUMN IF EXISTS "time_start",
+DROP COLUMN IF EXISTS "title",
+DROP COLUMN IF EXISTS "view_count";
+
+-- 2. Thêm columns mới (nếu chưa có)
+ALTER TABLE "public"."GroupPost" 
+ADD COLUMN IF NOT EXISTS "like_count" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS "comment_count" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS "media_ids" TEXT,
+ADD COLUMN IF NOT EXISTS "share_count" INTEGER NOT NULL DEFAULT 0;
