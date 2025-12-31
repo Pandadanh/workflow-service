@@ -1,0 +1,7 @@
+services:
+  workflow-service:
+    public:
+      - method: GET
+        path: /api/health
+      - method: POST
+        path: /api/auth/login
