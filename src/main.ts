@@ -50,6 +50,8 @@ async function bootstrap() {
 
   app.useGlobalGuards(new JwtAuthGuard(reflector), new RolesGuard(reflector));
 
+  const port = configService.get<number>('PORT') ?? 8089;
+  await app.listen(port);
 }
 
 void bootstrap();
