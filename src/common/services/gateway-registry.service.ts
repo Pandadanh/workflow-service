@@ -22,7 +22,7 @@ export class GatewayRegistryService implements OnModuleInit, OnModuleDestroy {
   private isRetrying = false;
 
   constructor(private readonly configService: ConfigService) {
-    const port = this.configService.get<number>('port') || 8080;
+    const port = this.configService.get<number>('port') || 8089;
     const host = process.env.SERVICE_HOST || 'localhost';
     const protocol = process.env.SERVICE_PROTOCOL || 'http';
     
