@@ -11,13 +11,13 @@ jobs:
     steps:
       - name: Pull latest on server repo
         run: |
-          cd /snap/snapd-desktop-integration/315/badminton-dev/Workflow-service
+          cd /snap/snapd-desktop-integration/315/badminton-dev/workflow-service
           git fetch origin
           git reset --hard origin/develop
 
       - name: Install + build + reload
         run: |
-          cd /snap/snapd-desktop-integration/315/badminton-dev/Workflow-service
+          cd /snap/snapd-desktop-integration/315/badminton-dev/workflow-service
           npm ci
           npm run build
           pm2 reload workflow-service --update-env
