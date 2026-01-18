@@ -1,3 +1,2 @@
-import { SetMetadata } from '@nestjs/common';
-export const IS_PUBLIC_KEY = 'isPublic';
-export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+// Re-export from shared library
+export { IS_PUBLIC_KEY, Public } from '@smashclub/common';

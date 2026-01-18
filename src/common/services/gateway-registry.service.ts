@@ -27,10 +27,10 @@ export class GatewayRegistryService implements OnModuleInit, OnModuleDestroy {
     const protocol = process.env.SERVICE_PROTOCOL || 'http';
     
     this.config = {
-      gatewayUrl: this.configService.get<string>('GATEWAY_URL') || 'http://localhost:8089',
-      serviceName: this.configService.get<string>('SERVICE_NAME') || 'core',
+      gatewayUrl: this.configService.get<string>('GATEWAY_URL') || 'http://localhost:8080',
+      serviceName: this.configService.get<string>('SERVICE_NAME') || 'workflow',
       baseUrl: this.configService.get<string>('SERVICE_BASE_URL') || `${protocol}://${host}:${port}`,
-      instanceId: this.configService.get<string>('SERVICE_INSTANCE_ID') || `core-${randomUUID()}`,
+      instanceId: this.configService.get<string>('SERVICE_INSTANCE_ID') || `workflow-${randomUUID()}`,
       heartbeatInterval: parseInt(
         this.configService.get<string>('GATEWAY_HEARTBEAT_INTERVAL') || '5000',
         10,
