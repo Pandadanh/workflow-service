@@ -6,6 +6,7 @@ import { PrismaService } from '../../../prisma.service';
 import { EmailService } from '../../queue-consumer/application/email.service';
 import { NotificationHelperService } from '../../notification/application/notification-helper.service';
 import { ReservationService } from '../../reservation/application/reservation.service';
+import { RealtimeService } from 'src/modules/realtime/applications/realtime.service';
 
 export interface QueueMessage {
   type: string;
@@ -118,6 +119,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     private readonly moduleRef: ModuleRef,
     private readonly notificationHelper: NotificationHelperService,
     private readonly reservationService: ReservationService,
+    private readonly realtimeService: RealtimeService,
   ) {}
 
   async onModuleInit() {
@@ -629,6 +631,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
               metadata: data,
             });
           }
+          break;
+        case 'create_realtime_message':
+          await this.realtimeService.createMessage(data);
+          this.logger.log(`[Queue] Realtime message created for room ${data.room}`);
           break;
         default:
           this.logger.warn(`[Queue] Unknown message type: ${type}`);

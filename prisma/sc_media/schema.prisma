@@ -50,3 +50,14 @@ enum MediaFileActionType {
   UPLOAD
   DOWNLOAD
 }
+
+model RealtimeMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  room      String   @db.Uuid
+  content   String
+  type      String   @default("chat")
+  senderId  String?  @db.Uuid
+  createdAt DateTime @default(now())
+
+  @@index([room, createdAt])
+}
