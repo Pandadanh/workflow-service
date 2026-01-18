@@ -13,8 +13,8 @@ import { EmailService } from '../queue-consumer/application/email.service';
 import { PrismaModule } from '../../prisma.module';
 import { NotificationModule } from '../notification/notification.module';
 import { ReservationModule } from '../reservation/reservation.module';
-import { RealtimeService } from '../realtime/applications/realtime.service';
-import { RealtimeMessageRepository } from '../realtime/infrastructure/realtime-message.repository';
+
+// Note: RealtimeService moved to media-gateway
 
 @Module({
   imports: [
@@ -31,16 +31,10 @@ import { RealtimeMessageRepository } from '../realtime/infrastructure/realtime-m
   providers: [
     QueueService,
     EmailService,
-    RealtimeService,
-    {
-      provide: 'RealtimeMessageRepository',
-      useClass: RealtimeMessageRepository,
-    }
   ],
   exports: [
     QueueService,
     EmailService,
-    RealtimeService,
   ],
 })
 export class SharedModule {}
