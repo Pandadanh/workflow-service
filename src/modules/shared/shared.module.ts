@@ -13,6 +13,7 @@ import { EmailService } from '../queue-consumer/application/email.service';
 import { PrismaModule } from '../../prisma.module';
 import { NotificationModule } from '../notification/notification.module';
 import { ReservationModule } from '../reservation/reservation.module';
+import { RankingModule } from '../ranking/ranking.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ReservationModule } from '../reservation/reservation.module';
     PrismaModule,
     NotificationModule,
     ReservationModule,
+    RankingModule,
   ],
   providers: [
     QueueService,
