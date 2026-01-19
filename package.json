@@ -8,18 +8,20 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start": "node dist/workflow-service/src/main",
+    "start:dev": "nest start --watch --preserveWatchOutput --entryFile workflow-service/src/main",
+    "start:debug": "nest start --debug --watch --entryFile workflow-service/src/main",
+    "start:prod": "node dist/workflow-service/src/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "prisma:generate": "npx prisma generate --schema=./prisma/sc_common/schema.prisma && npx prisma generate --schema=./prisma/sc_finance/schema.prisma && npx prisma generate --schema=./prisma/sc_identity/schema.prisma && npx prisma generate --schema=./prisma/sc_processing/schema.prisma && npx prisma generate --schema=./prisma/sc_media/schema.prisma"
   },
   "dependencies": {
+    "@smashclub/common": "file:../smashclub-common/packages/@smashclub/common",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.1.10",
     "@nestjs/config": "^4.0.2",

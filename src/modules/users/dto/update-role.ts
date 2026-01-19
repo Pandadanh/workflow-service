@@ -1,5 +1,5 @@
 import { IsEnum } from 'class-validator';
-import { UserRole } from '../../../../generated/prisma/sc_identity/client';
+import { UserRole } from '.prisma/sc_identity';
 
 export class UpdateRoleDto {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
