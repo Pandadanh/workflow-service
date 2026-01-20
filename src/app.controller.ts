@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Public } from './common/decorators/public.decorator';
 import { AppService } from './app.service';
 
 @ApiTags('Health Check')
@@ -8,6 +9,7 @@ export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'Get application status' })
   @ApiResponse({ status: 200, description: 'Application is running' })
   getHello(): string {
@@ -15,6 +17,7 @@ export class AppController {
   }
 
   @Get('ping')
+  @Public()
   @ApiOperation({ summary: 'Simple ping endpoint' })
   @ApiResponse({ status: 200, description: 'Pong response' })
   getPing() {
@@ -22,6 +25,7 @@ export class AppController {
   }
 
   @Get('health')
+  @Public()
   @ApiOperation({ summary: 'Health check endpoint' })
   @ApiResponse({ status: 200, description: 'Service is healthy' })
   getHealth() {
