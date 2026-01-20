@@ -19,22 +19,24 @@ jobs:
           git checkout "${GITHUB_REF_NAME}"
 
           npm ci
+          npm run prisma:generate
           npm run build
           pm2 restart workflow-service --update-env || pm2 start dist/main.js --name workflow-service
           pm2 save
 
-  # deploy_prod:
-  #   if: startsWith(github.ref_name, 'prod-v')
-  #   runs-on: [self-hosted, prod]
-  #   steps:
-  #     - name: Deploy PROD by tag
-  #       run: |
-  #         set -e
-  #         cd ~/snap/snapd-desktop-integration/315/badminton-prod/workflow-service
-  #         git fetch origin --tags
-  #         git checkout "${GITHUB_REF_NAME}"
+  deploy_prod:
+    if: startsWith(github.ref_name, 'prod-v')
+    runs-on: [self-hosted, prod]
+    steps:
+      - name: Deploy PROD by tag
+        run: |
+          set -e
+          cd ~/snap/snapd-desktop-integration/315/badminton-prod/workflow-service
+          git fetch origin --tags
+          git checkout "${GITHUB_REF_NAME}"
 
-  #         npm ci
-  #         npm run build
-  #         pm2 restart workflow-service --update-env || pm2 start dist/main.js --name workflow-service
-  #         pm2 save
+          npm ci
+          npm run prisma:generate
+          npm run build
+          pm2 restart workflow-service --update-env || pm2 start dist/main.js --name workflow-service
+          pm2 save
