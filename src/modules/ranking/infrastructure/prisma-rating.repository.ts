@@ -7,6 +7,7 @@ import {
   RatingUpdateResult,
   LeaderboardEntry,
   PlayerRankDetails,
+  MatchResult,
 } from '../domain/rating.interface';
 import { RatingHistory } from '../domain/rating.entity';
 
@@ -174,7 +175,7 @@ export class PrismaRatingRepository implements IRatingRepository {
           record.volatility_after ?? 0.06,
           record.opponent_rating,
           record.opponent_rd,
-          record.match_result as 'WIN' | 'LOSE' | 'DRAW',
+          record.match_result as MatchResult,
           record.team_number,
           record.is_active,
           record.is_deleted,

@@ -8,7 +8,7 @@ import { NotificationHelperService } from '../../notification/application/notifi
 import { ReservationService } from '../../reservation/application/reservation.service';
 import { GlickoService } from '../../ranking/application/glicko.service';
 import { RatingService } from '../../ranking/application/rating.service';
-import { PlayerRatingData, PlayerRatingResult } from '../../ranking/domain/rating.interface';
+import { PlayerRatingData, PlayerRatingResult, MatchResult } from '../../ranking/domain/rating.interface';
 
 export interface QueueMessage {
   type: string;
@@ -81,7 +81,7 @@ export interface CleanupEvent {
 export interface MatchPlayer {
   id: string;
   team: number;
-  result: 'WIN' | 'LOSE' | 'DRAW';
+  result: MatchResult;
 }
 
 export interface MatchFinishedEvent {
@@ -99,7 +99,7 @@ export interface MatchProcessedResult {
   results?: {
     playerId: string;
     team: number;
-    matchResult: 'WIN' | 'LOSE' | 'DRAW';
+    matchResult: MatchResult;
     ratingBefore: number;
     ratingAfter: number;
     ratingChange: number;

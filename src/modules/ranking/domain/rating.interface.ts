@@ -1,4 +1,9 @@
 /**
+ * Match result enum
+ */
+export type MatchResult = 'WIN' | 'LOSE' | 'DRAW';
+
+/**
  * Player rating data from database (simplified for calculations)
  */
 export interface PlayerRatingData {
@@ -14,7 +19,7 @@ export interface PlayerRatingData {
 export interface MatchPlayerInput {
   id: string;
   team: number;
-  result: 'WIN' | 'LOSE' | 'DRAW';
+  result: MatchResult;
 }
 
 /**
@@ -23,7 +28,7 @@ export interface MatchPlayerInput {
 export interface PlayerRatingResult {
   playerId: string;
   team: number;
-  result: 'WIN' | 'LOSE' | 'DRAW';
+  result: MatchResult;
   ratingBefore: number;
   ratingAfter: number;
   ratingChange: number;

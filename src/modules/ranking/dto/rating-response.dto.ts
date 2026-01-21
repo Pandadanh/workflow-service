@@ -1,10 +1,12 @@
+import type { MatchResult } from '../domain/rating.interface';
+
 /**
  * Player rating result after match calculation
  */
 export class PlayerRatingResultDto {
   playerId: string;
   team: number;
-  result: 'WIN' | 'LOSE' | 'DRAW';
+  result: MatchResult;
   ratingBefore: number;
   ratingAfter: number;
   ratingChange: number;
@@ -73,7 +75,7 @@ export class RatingHistoryEntryDto {
   volatilityAfter: number;
   opponentRating: number;
   opponentRd: number;
-  matchResult: 'WIN' | 'LOSE' | 'DRAW';
+  matchResult: MatchResult;
   teamNumber: number;
   createdAt: Date;
 }

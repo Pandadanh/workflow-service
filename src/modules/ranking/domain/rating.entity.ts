@@ -1,3 +1,5 @@
+import type { MatchResult } from './rating.interface';
+
 /**
  * Player Rating Entity
  * Represents a player's current Glicko-2 rating
@@ -53,7 +55,7 @@ export class RatingHistory {
     public readonly volatilityAfter: number,
     public readonly opponentRating: number,
     public readonly opponentRd: number,
-    public readonly matchResult: 'WIN' | 'LOSE' | 'DRAW',
+    public readonly matchResult: MatchResult,
     public readonly teamNumber: number,
     public readonly isActive: boolean = true,
     public readonly isDeleted: boolean = false,
