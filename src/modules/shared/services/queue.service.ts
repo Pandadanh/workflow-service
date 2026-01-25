@@ -633,8 +633,25 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
           }
           break;
         case 'create_realtime_message':
-          // TODO: Send to media-gateway via HTTP (realtime moved to media-gateway)
-          this.logger.warn(`[Queue] create_realtime_message - realtime is now in media-gateway. Message skipped.`);
+          // Save realtime message to sc_media database
+          try {
+            // Note: senderName column added in migration - cast to any to avoid type error before prisma generate
+            await this.prismaService.media.realtimeMessage.create({
+              data: {
+                id: data.id,
+                room: data.room,
+                content: data.content,
+                type: data.type || 'chat',
+                senderId: data.senderId || null,
+                senderName: data.senderName || null,
+                createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+              } as any,
+            });
+            this.logger.log(`[Queue] Saved realtime message to DB: room=${data.room}, id=${data.id}, senderName=${data.senderName}`);
+          } catch (error) {
+            this.logger.error(`[Queue] Failed to save realtime message:`, error);
+            throw error;
+          }
           break;
         default:
           this.logger.warn(`[Queue] Unknown message type: ${type}`);
