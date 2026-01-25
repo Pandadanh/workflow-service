@@ -21,7 +21,7 @@ jobs:
           npm ci
           npm run prisma:generate
           npm run build
-          pm2 restart workflow-service --update-env || pm2 start dist/main.js --name workflow-service
+          pm2 restart workflow-service --update-env || pm2 start dist/workflow-service/src/main.js --name workflow-service
           pm2 save
 
   deploy_prod:
@@ -38,5 +38,5 @@ jobs:
           npm ci
           npm run prisma:generate
           npm run build
-          pm2 restart workflow-service --update-env || pm2 start dist/main.js --name workflow-service
+          pm2 restart workflow-service --update-env || pm2 start dist/workflow-service/src/main.js --name workflow-service
           pm2 save
