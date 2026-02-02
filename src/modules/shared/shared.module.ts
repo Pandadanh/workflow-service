@@ -14,6 +14,7 @@ import { PrismaModule } from '../../prisma.module';
 import { NotificationModule } from '../notification/notification.module';
 import { ReservationModule } from '../reservation/reservation.module';
 import { RankingModule } from '../ranking/ranking.module';
+import { RewardModule } from '../reward/reward.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { RankingModule } from '../ranking/ranking.module';
     NotificationModule,
     ReservationModule,
     RankingModule,
+    RewardModule,
   ],
   providers: [
     QueueService,

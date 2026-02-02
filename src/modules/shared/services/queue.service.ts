@@ -9,6 +9,12 @@ import { ReservationService } from '../../reservation/application/reservation.se
 import { GlickoService } from '../../ranking/application/glicko.service';
 import { RatingService } from '../../ranking/application/rating.service';
 import { PlayerRatingData, PlayerRatingResult, MatchResult } from '../../ranking/domain/rating.interface';
+import { RewardService } from '../../reward/application/reward.service';
+import type {
+  RewardActionType,
+  RewardPointEventInput,
+  RewardPointResult,
+} from '../../reward/domain/reward.interface';
 
 export interface QueueMessage {
   type: string;
@@ -114,6 +120,32 @@ export interface MatchProcessedResult {
   metadata?: any;
 }
 
+export interface RewardPointEvent {
+  event: 'REWARD_POINT_EVENT';
+  userId: string;
+  action: RewardActionType;
+  referenceId?: string;
+  referenceType?: string;
+  customPoints?: number;
+  note?: string;
+  metadata?: any;
+}
+
+export interface RewardPointProcessedResult {
+  event: 'REWARD_POINT_PROCESSED';
+  userId: string;
+  action: RewardActionType;
+  status: 'success' | 'failed';
+  processedAt: Date;
+  points?: number;
+  pointsBefore?: number;
+  pointsAfter?: number;
+  transactionId?: string;
+  error?: string;
+  isDuplicate?: boolean;
+  metadata?: any;
+}
+
 @Injectable()
 export class QueueService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(QueueService.name);
@@ -133,7 +165,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   // Inter-service queues (badminton-booking-BE <-> workflow-service)
   private readonly interServiceQueues = {
     matchFinished: 'workflow.match.finished',     // BE -> Workflow
-    matchProcessed: 'workflow.match.processed'    // Workflow -> BE
+    matchProcessed: 'workflow.match.processed',   // Workflow -> BE
+    rewardEvent: 'workflow.reward.event',         // BE -> Workflow
+    rewardProcessed: 'workflow.reward.processed'  // Workflow -> BE
   };
   
   private isProcessing = false;
@@ -166,6 +200,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     private readonly reservationService: ReservationService,
     private readonly glickoService: GlickoService,
     private readonly ratingService: RatingService,
+    private readonly rewardService: RewardService,
   ) {}
 
   async onModuleInit() {
@@ -173,6 +208,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     await this.consumeMessages();
     await this.consumeWithdrawalQueues(); // Add withdrawal queue consumers
     await this.consumeInterServiceQueues(); // Add inter-service queue consumers
+    await this.consumeRewardEventQueue(); // Add reward queue consumer
     this.startIdleCheck();
   }
 
@@ -240,6 +276,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         // Declare inter-service queues (badminton-booking-BE <-> workflow-service)
         await this.channel.assertQueue(this.interServiceQueues.matchFinished, { durable: true });
         await this.channel.assertQueue(this.interServiceQueues.matchProcessed, { durable: true });
+        await this.channel.assertQueue(this.interServiceQueues.rewardEvent, { durable: true });
+        await this.channel.assertQueue(this.interServiceQueues.rewardProcessed, { durable: true });
 
         this.logger.log('Using existing queue configuration, withdrawal queues, and inter-service queues');
       }
@@ -1453,5 +1491,97 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     );
 
     this.logger.log('[Queue] Inter-service queue consumers started (listening for badminton-booking-BE events)');
+  }
+
+  private async processRewardPointEvent(data: RewardPointEvent): Promise<void> {
+    this.logger.log(`[InterService] Received REWARD_POINT_EVENT for user ${data.userId}`);
+    this.logger.log(`[InterService] Processing reward action: ${data.action}`);
+
+    try {
+      const input: RewardPointEventInput = {
+        userId: data.userId,
+        action: data.action,
+        referenceId: data.referenceId,
+        referenceType: data.referenceType,
+        customPoints: data.customPoints,
+        note: data.note,
+        metadata: data.metadata,
+      };
+
+      const result: RewardPointResult = await this.rewardService.processRewardEvent(input);
+
+      // Send result back to badminton-booking-BE
+      await this.sendRewardPointProcessedResult({
+        event: 'REWARD_POINT_PROCESSED',
+        userId: data.userId,
+        action: data.action,
+        status: result.success ? 'success' : 'failed',
+        processedAt: new Date(),
+        points: result.points,
+        pointsBefore: result.pointsBefore,
+        pointsAfter: result.pointsAfter,
+        transactionId: result.transactionId,
+        error: result.error,
+        isDuplicate: result.isDuplicate,
+        metadata: data.metadata,
+      });
+
+      if (result.success) {
+        this.logger.log(
+          `[InterService] Reward processed for user ${data.userId}: ` +
+          `${result.pointsBefore} -> ${result.pointsAfter} (${(result.points ?? 0) >= 0 ? '+' : ''}${result.points})` +
+          (result.isDuplicate ? ' [DUPLICATE]' : '')
+        );
+      } else {
+        this.logger.error(`[InterService] Reward processing failed for user ${data.userId}: ${result.error}`);
+      }
+    } catch (error) {
+      this.logger.error(`[InterService] Error processing reward event for user ${data.userId}:`, error);
+
+      // Send error result back
+      await this.sendRewardPointProcessedResult({
+        event: 'REWARD_POINT_PROCESSED',
+        userId: data.userId,
+        action: data.action,
+        status: 'failed',
+        processedAt: new Date(),
+        error: error.message,
+        metadata: data.metadata,
+      });
+    }
+  }
+
+  async sendRewardPointProcessedResult(data: RewardPointProcessedResult): Promise<void> {
+    this.logger.log(`[InterService] Sending REWARD_POINT_PROCESSED for user ${data.userId} back to badminton-booking-BE`);
+    await this.publishToQueue(this.interServiceQueues.rewardProcessed, {
+      type: 'REWARD_POINT_PROCESSED',
+      data,
+      timestamp: new Date()
+    });
+  }
+
+  private async consumeRewardEventQueue(): Promise<void> {
+    if (!this.channel) {
+      this.logger.warn('[Queue] Channel not initialized. Skipping reward queue consumption.');
+      return;
+    }
+
+    await this.channel.consume(
+      this.interServiceQueues.rewardEvent,
+      async (msg: any) => {
+        if (!msg) return;
+        try {
+          const message: QueueMessage = JSON.parse(msg.content.toString());
+          await this.processRewardPointEvent(message.data);
+          this.channel?.ack(msg);
+        } catch (error) {
+          this.logger.error('[InterService] Error processing REWARD_POINT_EVENT:', error);
+          this.channel?.nack(msg, false, true);
+        }
+      },
+      { noAck: false }
+    );
+
+    this.logger.log('[Queue] Reward event queue consumer started');
   }
 }
