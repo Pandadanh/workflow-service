@@ -3,8 +3,8 @@ import { PrismaService } from '../../../prisma.service';
 import { IUserRepository } from '../domain/user.repository';
 import { User } from '../domain/user.entity';
 // import { PrismaClient } from '@prisma/client';
-import { PrismaClient } from '../../../../generated/prisma/sc_identity/client';
-import { UserRole } from '../../../../generated/prisma/sc_identity/client';
+import { PrismaClient } from '.prisma/sc_identity';
+import { UserRole } from '.prisma/sc_identity';
 import { JsonValue } from '@prisma/client/runtime/library';
 
 type PrismaUser = Awaited<ReturnType<PrismaClient['user']['findUnique']>>;

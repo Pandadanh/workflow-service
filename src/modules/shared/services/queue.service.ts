@@ -16,6 +16,8 @@ import type {
   RewardPointResult,
 } from '../../reward/domain/reward.interface';
 
+// Note: RealtimeService moved to media-gateway - realtime messages should be sent via HTTP to media-gateway
+
 export interface QueueMessage {
   type: string;
   data: any;
@@ -719,6 +721,27 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
               resourceType: 'report',
               metadata: data,
             });
+          }
+          break;
+        case 'create_realtime_message':
+          // Save realtime message to sc_media database
+          try {
+            // Note: senderName column added in migration - cast to any to avoid type error before prisma generate
+            await this.prismaService.media.realtimeMessage.create({
+              data: {
+                id: data.id,
+                room: data.room,
+                content: data.content,
+                type: data.type || 'chat',
+                senderId: data.senderId || null,
+                senderName: data.senderName || null,
+                createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+              } as any,
+            });
+            this.logger.log(`[Queue] Saved realtime message to DB: room=${data.room}, id=${data.id}, senderName=${data.senderName}`);
+          } catch (error) {
+            this.logger.error(`[Queue] Failed to save realtime message:`, error);
+            throw error;
           }
           break;
         default:

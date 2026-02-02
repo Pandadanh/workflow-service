@@ -5,7 +5,7 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../../generated/prisma/sc_common"
+  output   = "../../node_modules/.prisma/sc_common"
 }
 
 model ErrorLog {

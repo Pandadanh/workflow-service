@@ -1,9 +1,9 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { PrismaClient as CommonPrismaClient } from 'generated/prisma/sc_common/client';
-import { PrismaClient as FinancePrismaClient } from 'generated/prisma/sc_finance/client';
-import { PrismaClient as IdentityPrismaClient } from 'generated/prisma/sc_identity/client';
-import { PrismaClient as ProcessingPrismaClient } from 'generated/prisma/sc_processing/client';
-import { PrismaClient as MediaPrismaClient } from 'generated/prisma/sc_media/client';
+import { PrismaClient as CommonPrismaClient } from '.prisma/sc_common';
+import { PrismaClient as FinancePrismaClient } from '.prisma/sc_finance';
+import { PrismaClient as IdentityPrismaClient } from '.prisma/sc_identity';
+import { PrismaClient as ProcessingPrismaClient } from '.prisma/sc_processing';
+import { PrismaClient as MediaPrismaClient } from '.prisma/sc_media';
 
 @Injectable()
 export class PrismaService implements OnModuleInit {

@@ -1,5 +1,5 @@
 import { JsonValue } from '@prisma/client/runtime/library';
-import { UserRole } from '../../../../generated/prisma/sc_identity/client';
+import { UserRole } from '.prisma/sc_identity';
 
 export class User {
   constructor(

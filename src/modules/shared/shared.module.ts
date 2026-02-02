@@ -16,6 +16,8 @@ import { ReservationModule } from '../reservation/reservation.module';
 import { RankingModule } from '../ranking/ranking.module';
 import { RewardModule } from '../reward/reward.module';
 
+// Note: RealtimeService moved to media-gateway
+
 @Module({
   imports: [
     ConfigModule,

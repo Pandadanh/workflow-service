@@ -5,7 +5,7 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../../generated/prisma/sc_finance"
+  output   = "../../node_modules/.prisma/sc_finance"
 }
 
 model Order {

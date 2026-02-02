@@ -1,4 +1,4 @@
-import { UserRole } from '../../../../generated/prisma/sc_identity/client';
+import { UserRole } from '.prisma/sc_identity';
 import { User } from './user.entity';
 
 export abstract class IUserRepository {

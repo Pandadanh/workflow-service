@@ -1,6 +1,5 @@
-import { SetMetadata } from '@nestjs/common';
-import { UserRole } from '../../../generated/prisma/sc_identity/client';
+// Re-export from shared library
+export { ROLES_KEY, Roles } from '@smashclub/common';
 
-export const ROLES_KEY = 'roles';
-export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
-export type Role = UserRole;
+// Legacy support - map to string type for backwards compatibility
+export type Role = string;

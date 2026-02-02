@@ -10,6 +10,9 @@ import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
 import { RolePrefixMap } from '../../config/role-prefix.config';
 
+/**
+ * Auth guard that trusts Gateway's authentication
+ */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
@@ -22,9 +25,24 @@ export class JwtAuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const req = context.switchToHttp().getRequest();
-    const user = req.user;
+    
+    // Get user from Gateway headers
+    const userId = req.headers['x-user-id'];
+    const userRoles = req.headers['x-user-roles'];
+    const userEmail = req.headers['x-user-email'];
+    
+    if (userId && !req.user) {
+      req.user = {
+        id: userId,
+        email: userEmail,
+        roles: userRoles ? userRoles.split(',').map((r: string) => r.trim()) : [],
+      };
+    }
 
-    if (!user) throw new UnauthorizedException('Token không hợp lệ hoặc chưa đăng nhập.');
+    const user = req.user;
+    if (!user) {
+      throw new UnauthorizedException('Token không hợp lệ hoặc chưa đăng nhập.');
+    }
 
     // ✅ Role prefix check
     const path = req.originalUrl.split('?')[0].replace(/^\/api(\/v\d+)?/, '');
@@ -34,7 +52,7 @@ export class JwtAuthGuard implements CanActivate {
 
     if (matchedPrefix) {
       const allowedRoles = RolePrefixMap[matchedPrefix].map((r) => r.toUpperCase());
-      const userRoles = (user.roles as string[]).map((r) => r.toUpperCase());
+      const userRoles = (user.roles as string[] || []).map((r) => r.toUpperCase());
       const hasAccess = allowedRoles.some((r) => userRoles.includes(r));
 
       if (!hasAccess) {
