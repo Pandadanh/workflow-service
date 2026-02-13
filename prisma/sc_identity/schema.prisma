@@ -186,21 +186,99 @@ model RankLevel {
 }
 
 model UserRank {
-  id            String     @id @default(uuid()) @db.Uuid
-  user_id       String     @unique @db.Uuid
-  current_point Int        @default(0)
-  rank_id       String?    @db.Uuid
-  note          String?
-  properties    Json?
-  is_active     Boolean    @default(true)
-  is_deleted    Boolean    @default(false)
-  created_at    DateTime   @default(now())
-  updated_at    DateTime   @default(now())
-  created_by    String?    @db.Uuid
-  updated_by    String?    @db.Uuid
-  rank_level    RankLevel? @relation(fields: [rank_id], references: [id])
-  user          User       @relation(fields: [user_id], references: [id])
+  id                  String              @id @default(uuid()) @db.Uuid
+  user_id             String              @unique @db.Uuid
+  current_point       Int                 @default(0)
+  reward_points       Int                 @default(0)
+  rating              Float               @default(1500)
+  rating_deviation    Float               @default(350)
+  volatility          Float               @default(0.06)
+  last_match_at       DateTime?
+  rank_id             String?             @db.Uuid
+  note                String?
+  properties          Json?
+  is_active           Boolean             @default(true)
+  is_deleted          Boolean             @default(false)
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @default(now())
+  created_by          String?             @db.Uuid
+  updated_by          String?             @db.Uuid
+  rank_level          RankLevel?          @relation(fields: [rank_id], references: [id])
+  user                User                @relation(fields: [user_id], references: [id])
+  rating_histories    RatingHistory[]
+  reward_transactions RewardTransaction[]
+
+  @@index([rating(sort: Desc)])
+  @@index([reward_points(sort: Desc)])
 }
+
+model RatingHistory {
+  id                 String    @id @default(uuid()) @db.Uuid
+  user_id            String    @db.Uuid
+  match_id           String    @db.Uuid
+  rating_before      Float
+  rating_after       Float
+  rating_change      Float
+  rd_before          Float
+  rd_after           Float
+  volatility_before  Float?
+  volatility_after   Float?
+  opponent_rating    Float
+  opponent_rd        Float
+  match_result       String    @db.VarChar(10)
+  team_number        Int       @default(1)
+  note               String?
+  properties         Json?
+  is_active          Boolean   @default(true)
+  is_deleted         Boolean   @default(false)
+  created_at         DateTime  @default(now())
+  created_by         String?   @db.Uuid
+  user_rank          UserRank  @relation(fields: [user_id], references: [user_id])
+
+  @@index([user_id])
+  @@index([match_id])
+  @@index([created_at])
+  @@index([user_id, created_at(sort: Desc)])
+}
+
+// ==================== REWARD SYSTEM ====================
+
+enum RewardAction {
+  CHECKIN
+  BOOKING
+  COMPLETE_ORDER
+  INVITE_USER
+  FIRST_LOGIN
+  REDEEM
+  ADMIN_ADJUST
+}
+
+model RewardTransaction {
+  id              String       @id @default(uuid()) @db.Uuid
+  user_id         String       @db.Uuid
+  action          RewardAction
+  points          Int
+  points_before   Int
+  points_after    Int
+  reference_id    String?      @db.Uuid
+  reference_type  String?      @db.VarChar(50)
+  idempotency_key String       @unique @db.VarChar(255)
+  note            String?
+  properties      Json?
+  is_active       Boolean      @default(true)
+  is_deleted      Boolean      @default(false)
+  created_at      DateTime     @default(now())
+  created_by      String?      @db.Uuid
+  user_rank       UserRank     @relation(fields: [user_id], references: [user_id])
+
+  @@index([user_id])
+  @@index([action])
+  @@index([reference_id])
+  @@index([created_at])
+  @@index([user_id, action, created_at])
+}
+
+// ==================== END REWARD SYSTEM ====================
 
 model UserSystemConfig {
   id               String   @id @default(uuid()) @db.Uuid
