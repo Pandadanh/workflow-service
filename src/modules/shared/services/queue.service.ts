@@ -6,6 +6,15 @@ import { PrismaService } from '../../../prisma.service';
 import { EmailService } from '../../queue-consumer/application/email.service';
 import { NotificationHelperService } from '../../notification/application/notification-helper.service';
 import { ReservationService } from '../../reservation/application/reservation.service';
+import { GlickoService } from '../../ranking/application/glicko.service';
+import { RatingService } from '../../ranking/application/rating.service';
+import { PlayerRatingData, PlayerRatingResult, MatchResult } from '../../ranking/domain/rating.interface';
+import { RewardService } from '../../reward/application/reward.service';
+import type {
+  RewardActionType,
+  RewardPointEventInput,
+  RewardPointResult,
+} from '../../reward/domain/reward.interface';
 
 // Note: RealtimeService moved to media-gateway - realtime messages should be sent via HTTP to media-gateway
 
@@ -76,6 +85,69 @@ export interface CleanupEvent {
   metadata?: any;
 }
 
+// Inter-service communication types (badminton-booking-BE <-> workflow-service)
+export interface MatchPlayer {
+  id: string;
+  team: number;
+  result: MatchResult;
+}
+
+export interface MatchFinishedEvent {
+  event: 'MATCH_FINISHED';
+  matchId: string;
+  players: MatchPlayer[];
+  metadata?: any;
+}
+
+export interface MatchProcessedResult {
+  event: 'MATCH_PROCESSED';
+  matchId: string;
+  status: 'success' | 'failed';
+  processedAt: Date;
+  results?: {
+    playerId: string;
+    team: number;
+    matchResult: MatchResult;
+    ratingBefore: number;
+    ratingAfter: number;
+    ratingChange: number;
+    rdBefore: number;
+    rdAfter: number;
+    volatilityBefore: number;
+    volatilityAfter: number;
+    opponentRating: number;
+    opponentRd: number;
+  }[];
+  error?: string;
+  metadata?: any;
+}
+
+export interface RewardPointEvent {
+  event: 'REWARD_POINT_EVENT';
+  userId: string;
+  action: RewardActionType;
+  referenceId?: string;
+  referenceType?: string;
+  customPoints?: number;
+  note?: string;
+  metadata?: any;
+}
+
+export interface RewardPointProcessedResult {
+  event: 'REWARD_POINT_PROCESSED';
+  userId: string;
+  action: RewardActionType;
+  status: 'success' | 'failed';
+  processedAt: Date;
+  points?: number;
+  pointsBefore?: number;
+  pointsAfter?: number;
+  transactionId?: string;
+  error?: string;
+  isDuplicate?: boolean;
+  metadata?: any;
+}
+
 @Injectable()
 export class QueueService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(QueueService.name);
@@ -90,6 +162,14 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     retry: 'withdrawal.retry',
     alerts: 'withdrawal.alerts',
     walletUpdates: 'wallet.updates'
+  };
+
+  // Inter-service queues (badminton-booking-BE <-> workflow-service)
+  private readonly interServiceQueues = {
+    matchFinished: 'workflow.match.finished',     // BE -> Workflow
+    matchProcessed: 'workflow.match.processed',   // Workflow -> BE
+    rewardEvent: 'workflow.reward.event',         // BE -> Workflow
+    rewardProcessed: 'workflow.reward.processed'  // Workflow -> BE
   };
   
   private isProcessing = false;
@@ -120,12 +200,17 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     private readonly moduleRef: ModuleRef,
     private readonly notificationHelper: NotificationHelperService,
     private readonly reservationService: ReservationService,
+    private readonly glickoService: GlickoService,
+    private readonly ratingService: RatingService,
+    private readonly rewardService: RewardService,
   ) {}
 
   async onModuleInit() {
     await this.connect();
     await this.consumeMessages();
     await this.consumeWithdrawalQueues(); // Add withdrawal queue consumers
+    await this.consumeInterServiceQueues(); // Add inter-service queue consumers
+    await this.consumeRewardEventQueue(); // Add reward queue consumer
     this.startIdleCheck();
   }
 
@@ -190,7 +275,13 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         await this.channel.assertExchange('withdrawal.events', 'topic', { durable: true });
         await this.channel.assertExchange('wallet.events', 'topic', { durable: true });
 
-        this.logger.log('Using existing queue configuration and withdrawal queues');
+        // Declare inter-service queues (badminton-booking-BE <-> workflow-service)
+        await this.channel.assertQueue(this.interServiceQueues.matchFinished, { durable: true });
+        await this.channel.assertQueue(this.interServiceQueues.matchProcessed, { durable: true });
+        await this.channel.assertQueue(this.interServiceQueues.rewardEvent, { durable: true });
+        await this.channel.assertQueue(this.interServiceQueues.rewardProcessed, { durable: true });
+
+        this.logger.log('Using existing queue configuration, withdrawal queues, and inter-service queues');
       }
 
       // Handle connection errors and reconnection
@@ -1264,5 +1355,256 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     );
 
     this.logger.log('[Queue] Withdrawal queue consumers started successfully');
+  }
+
+  private async processMatchFinishedEvent(data: MatchFinishedEvent): Promise<void> {
+    this.logger.log(`[InterService] Received MATCH_FINISHED event for match ${data.matchId}`);
+    this.logger.log(`[InterService] Processing ${data.players.length} players using Glicko-2 algorithm...`);
+    
+    try {
+      // Idempotency check - ensure match hasn't been processed before
+      const alreadyProcessed = await this.ratingService.isMatchProcessed(data.matchId);
+      if (alreadyProcessed) {
+        this.logger.warn(`[InterService] Match ${data.matchId} has already been processed. Skipping.`);
+        await this.sendMatchProcessedResult({
+          event: 'MATCH_PROCESSED',
+          matchId: data.matchId,
+          status: 'success',
+          processedAt: new Date(),
+          metadata: {
+            processedBy: 'workflow-service',
+            skipped: true,
+            reason: 'Match already processed (idempotency check)',
+          },
+        });
+        return;
+      }
+
+      // Fetch current ratings for all players from database
+      const playerIds = data.players.map((p) => p.id);
+      const playerRatings = await this.ratingService.getPlayerRatings(playerIds);
+
+      this.logger.log(`[InterService] Fetched ratings for ${playerRatings.size} players`);
+
+      let calculationResult;
+      if (data.players.length === 2) {
+        const player1 = data.players.find((p) => p.team === 1)!;
+        const player2 = data.players.find((p) => p.team === 2)!;
+        calculationResult = this.glickoService.calculateSinglesMatch(
+          data.matchId,
+          player1,
+          player2,
+          playerRatings.get(player1.id) || this.glickoService.getDefaultRating(),
+          playerRatings.get(player2.id) || this.glickoService.getDefaultRating(),
+        );
+      } else {
+        // Doubles match (2v2 or more)
+        calculationResult = this.glickoService.calculateDoublesMatch(
+          data.matchId,
+          data.players,
+          playerRatings,
+        );
+      }
+
+      // Update ratings in database and create history records
+      const updateResults = await this.ratingService.updatePlayerRatings(
+        data.matchId,
+        calculationResult.playerResults,
+      );
+
+      // Log results
+      for (const result of calculationResult.playerResults) {
+        const changeStr = result.ratingChange > 0 ? `+${result.ratingChange.toFixed(1)}` : result.ratingChange.toFixed(1);
+        this.logger.log(
+          `[InterService] Player ${result.playerId} (Team ${result.team}): ${result.result} | ${result.ratingBefore.toFixed(1)} -> ${result.ratingAfter.toFixed(1)} (${changeStr})`,
+        );
+      }
+
+      // Build results array for response
+      const results: MatchProcessedResult['results'] = calculationResult.playerResults.map((r) => ({
+        playerId: r.playerId,
+        team: r.team,
+        matchResult: r.result,
+        ratingBefore: r.ratingBefore,
+        ratingAfter: r.ratingAfter,
+        ratingChange: r.ratingChange,
+        rdBefore: r.rdBefore,
+        rdAfter: r.rdAfter,
+        volatilityBefore: r.volatilityBefore,
+        volatilityAfter: r.volatilityAfter,
+        opponentRating: r.opponentRating,
+        opponentRd: r.opponentRd,
+      }));
+
+      // Check for any update failures
+      const failures = updateResults.filter((r) => !r.success);
+      if (failures.length > 0) {
+        this.logger.warn(`[InterService] Some rating updates failed: ${failures.map((f) => f.userId).join(', ')}`);
+      }
+
+      // Send processed result back to badminton-booking-BE
+      await this.sendMatchProcessedResult({
+        event: 'MATCH_PROCESSED',
+        matchId: data.matchId,
+        status: 'success',
+        processedAt: new Date(),
+        results,
+        metadata: {
+          processedBy: 'workflow-service',
+          algorithm: 'Glicko-2',
+          matchType: data.players.length === 2 ? 'singles' : 'doubles',
+          team1FinalRating: calculationResult.team1Rating,
+          team2FinalRating: calculationResult.team2Rating,
+          updateFailures: failures.length > 0 ? failures : undefined,
+        },
+      });
+
+      this.logger.log(`[InterService] Successfully processed match ${data.matchId} with Glicko-2 and sent result back`);
+    } catch (error) {
+      this.logger.error(`[InterService] Error processing match ${data.matchId}:`, error);
+      
+      // Send error result back to badminton-booking-BE
+      await this.sendMatchProcessedResult({
+        event: 'MATCH_PROCESSED',
+        matchId: data.matchId,
+        status: 'failed',
+        processedAt: new Date(),
+        error: error.message || 'Unknown error during Glicko-2 match processing',
+        metadata: {
+          processedBy: 'workflow-service',
+          algorithm: 'Glicko-2',
+          originalEvent: data.event,
+        },
+      });
+    }
+  }
+
+  // Send MATCH_PROCESSED result back to badminton-booking-BE
+  async sendMatchProcessedResult(data: MatchProcessedResult): Promise<void> {
+    this.logger.log(`[InterService] Sending MATCH_PROCESSED result for match ${data.matchId} back to badminton-booking-BE`);
+    await this.publishToQueue(this.interServiceQueues.matchProcessed, {
+      type: 'MATCH_PROCESSED',
+      data,
+      timestamp: new Date()
+    });
+  }
+
+  // Consumer for inter-service queues (events from badminton-booking-BE)
+  private async consumeInterServiceQueues(): Promise<void> {
+    if (!this.channel) {
+      this.logger.warn('[Queue] Channel not initialized. Skipping inter-service queue consumption.');
+      return;
+    }
+
+    // Consume MATCH_FINISHED events from badminton-booking-BE
+    await this.channel.consume(
+      this.interServiceQueues.matchFinished,
+      async (msg) => {
+        if (!msg) return;
+        try {
+          const message: QueueMessage = JSON.parse(msg.content.toString());
+          await this.processMatchFinishedEvent(message.data);
+          this.channel?.ack(msg);
+        } catch (error) {
+          this.logger.error('[InterService] Error processing MATCH_FINISHED event:', error);
+          this.channel?.nack(msg, false, true);
+        }
+      },
+      { noAck: false }
+    );
+
+    this.logger.log('[Queue] Inter-service queue consumers started (listening for badminton-booking-BE events)');
+  }
+
+  private async processRewardPointEvent(data: RewardPointEvent): Promise<void> {
+    this.logger.log(`[InterService] Received REWARD_POINT_EVENT for user ${data.userId}`);
+    this.logger.log(`[InterService] Processing reward action: ${data.action}`);
+
+    try {
+      const input: RewardPointEventInput = {
+        userId: data.userId,
+        action: data.action,
+        referenceId: data.referenceId,
+        referenceType: data.referenceType,
+        customPoints: data.customPoints,
+        note: data.note,
+        metadata: data.metadata,
+      };
+
+      const result: RewardPointResult = await this.rewardService.processRewardEvent(input);
+
+      // Send result back to badminton-booking-BE
+      await this.sendRewardPointProcessedResult({
+        event: 'REWARD_POINT_PROCESSED',
+        userId: data.userId,
+        action: data.action,
+        status: result.success ? 'success' : 'failed',
+        processedAt: new Date(),
+        points: result.points,
+        pointsBefore: result.pointsBefore,
+        pointsAfter: result.pointsAfter,
+        transactionId: result.transactionId,
+        error: result.error,
+        isDuplicate: result.isDuplicate,
+        metadata: data.metadata,
+      });
+
+      if (result.success) {
+        this.logger.log(
+          `[InterService] Reward processed for user ${data.userId}: ` +
+          `${result.pointsBefore} -> ${result.pointsAfter} (${(result.points ?? 0) >= 0 ? '+' : ''}${result.points})` +
+          (result.isDuplicate ? ' [DUPLICATE]' : '')
+        );
+      } else {
+        this.logger.error(`[InterService] Reward processing failed for user ${data.userId}: ${result.error}`);
+      }
+    } catch (error) {
+      this.logger.error(`[InterService] Error processing reward event for user ${data.userId}:`, error);
+
+      // Send error result back
+      await this.sendRewardPointProcessedResult({
+        event: 'REWARD_POINT_PROCESSED',
+        userId: data.userId,
+        action: data.action,
+        status: 'failed',
+        processedAt: new Date(),
+        error: error.message,
+        metadata: data.metadata,
+      });
+    }
+  }
+
+  async sendRewardPointProcessedResult(data: RewardPointProcessedResult): Promise<void> {
+    this.logger.log(`[InterService] Sending REWARD_POINT_PROCESSED for user ${data.userId} back to badminton-booking-BE`);
+    await this.publishToQueue(this.interServiceQueues.rewardProcessed, {
+      type: 'REWARD_POINT_PROCESSED',
+      data,
+      timestamp: new Date()
+    });
+  }
+
+  private async consumeRewardEventQueue(): Promise<void> {
+    if (!this.channel) {
+      this.logger.warn('[Queue] Channel not initialized. Skipping reward queue consumption.');
+      return;
+    }
+
+    await this.channel.consume(
+      this.interServiceQueues.rewardEvent,
+      async (msg: any) => {
+        if (!msg) return;
+        try {
+          const message: QueueMessage = JSON.parse(msg.content.toString());
+          await this.processRewardPointEvent(message.data);
+          this.channel?.ack(msg);
+        } catch (error) {
+          this.logger.error('[InterService] Error processing REWARD_POINT_EVENT:', error);
+          this.channel?.nack(msg, false, true);
+        }
+      },
+      { noAck: false }
+    );
+
+    this.logger.log('[Queue] Reward event queue consumer started');
   }
 }

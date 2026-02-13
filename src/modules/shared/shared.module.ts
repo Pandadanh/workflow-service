@@ -13,6 +13,8 @@ import { EmailService } from '../queue-consumer/application/email.service';
 import { PrismaModule } from '../../prisma.module';
 import { NotificationModule } from '../notification/notification.module';
 import { ReservationModule } from '../reservation/reservation.module';
+import { RankingModule } from '../ranking/ranking.module';
+import { RewardModule } from '../reward/reward.module';
 
 // Note: RealtimeService moved to media-gateway
 
@@ -27,6 +29,8 @@ import { ReservationModule } from '../reservation/reservation.module';
     PrismaModule,
     NotificationModule,
     ReservationModule,
+    RankingModule,
+    RewardModule,
   ],
   providers: [
     QueueService,
